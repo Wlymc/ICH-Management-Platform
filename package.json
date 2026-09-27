@@ -1,0 +1,14 @@
+{
+  "name": "ich-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "非遗数字管理平台 - 零第三方依赖的 Node.js 全栈应用",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "smoke": "node --disable-warning=ExperimentalWarning scripts/smoke.js"
+  }
+}
