@@ -1,7 +1,7 @@
-import { BRAND } from '../config.js';
+import { BRAND, PORTAL } from '../config.js';
 import { h, truncate } from '../util.js';
 import { uploadUrl, portalLayout } from './layout.js';
-import { emptyState, gallery, levelChip, paginationBar, videoEmbed } from './components.js';
+import { emptyState, gallery, guestAiPanel, levelChip, paginationBar, videoEmbed } from './components.js';
 
 function coverOr(filePath, label, className = 'card-cover') {
   const url = uploadUrl(filePath);
@@ -59,8 +59,34 @@ function organizationCard(org) {
   </a>`;
 }
 
+/**
+ * 探访线索卡片：只展示官方名录能支撑的事实（所属地区、项目数、传承人数、代表项目），
+ * 不展示任何未经核实的地址与电话。
+ */
+function provinceCard(province) {
+  const samples = (province.samples || [])
+    .map((item) => `<a class="visit-sample" href="/projects/${item.id}">${h(item.name)}</a>`)
+    .join('');
+  return `<article class="card card-visit">
+    <div class="card-body">
+      <div class="card-tags">
+        <span class="chip chip-plain">${h(province.name)}</span>
+        ${province.projectCount ? `<span class="chip chip-red">项目 ${province.projectCount}</span>` : ''}
+        ${province.inheritorCount ? `<span class="chip chip-green">传承人 ${province.inheritorCount}</span>` : ''}
+      </div>
+      <h3 class="card-title">${h(province.name)}的非遗线索</h3>
+      ${samples ? `<div class="visit-samples">${samples}</div>` : '<p class="card-text">该地区暂无已发布项目。</p>'}
+      <p class="visit-hint">具体保护单位、开放时间与预约方式，请以当地文化和旅游部门公布信息为准。</p>
+      <div class="card-foot">
+        <span class="card-loc">共 ${province.projectCount} 个国家级项目</span>
+        <a class="card-go" href="/projects?region_id=${province.id}">查看全部 →</a>
+      </div>
+    </div>
+  </article>`;
+}
+
 export function homeView(data) {
-  const { stats, categories, projects, inheritors, organizations, images, regions, levels } = data;
+  const { stats, categories, projects, inheritors, organizations, images, regions, levels, visitProvinces = [] } = data;
   const categoryCards = categories
     .map(
       (c) => `<a class="cat-card" href="/projects?category_id=${c.id}">
@@ -113,6 +139,20 @@ export function homeView(data) {
     </div>
   </section>
 
+  <section class="wrap section ai-section">
+    <div class="ai-card">
+      <div class="ai-head">
+        <div>
+          <h2 class="section-title">问一问 AI 小助手</h2>
+          <p class="section-sub">不用注册，直接提问。回答基于站内已发布的非遗档案，并附上可点击的来源。</p>
+        </div>
+        <span class="ai-badge">站内资料回答</span>
+      </div>
+      ${guestAiPanel({ uid: 'home', variant: 'inline', placeholder: '例如：苏绣用什么材料 / 内蒙古有哪些非遗' })}
+      <p class="ai-footnote">AI 只做介绍与查询，不会修改任何档案；回答仅供了解，权威信息以官方名录与保护单位公布为准。</p>
+    </div>
+  </section>
+
   <section class="wrap section">
     <header class="section-head">
       <div><h2 class="section-title">十大门类，从这里开始逛</h2><p class="section-sub">按项目类别进入，看看这片土地上流传下来的手艺、曲调与风俗。</p></div>
@@ -137,13 +177,18 @@ export function homeView(data) {
     <div class="card-grid">${inheritors.length ? inheritors.map(inheritorCard).join('') : emptyState('暂无传承人数据')}</div>
   </section>
 
-  <section class="wrap section">
+  ${
+    PORTAL.showVisitSection
+      ? `<section class="wrap section">
     <header class="section-head">
-      <div><h2 class="section-title">探访体验点</h2><p class="section-sub">可以到场看、可以动手做——这些传习基地与展示馆对公众开放。</p></div>
-      <a class="section-more" href="/organizations">查看全部体验点 →</a>
+      <div><h2 class="section-title">探访线索</h2><p class="section-sub">按地区看看国家级非遗分布在哪些地方，方便规划实地探访。</p></div>
+      <a class="section-more" href="/organizations">查看全部地区 →</a>
     </header>
-    <div class="card-grid">${organizations.length ? organizations.map(organizationCard).join('') : emptyState('暂无开放体验点')}</div>
-  </section>
+    <div class="card-grid">${visitProvinces.length ? visitProvinces.slice(0, 6).map(provinceCard).join('') : emptyState('暂无探访线索')}</div>
+    <p class="visit-disclaimer">说明：本栏目只展示官方名录可支撑的地区与项目信息，不含未经核实的地址与电话；出行前请以当地文化和旅游部门公布信息为准。</p>
+  </section>`
+      : ''
+  }
 
   <section class="wrap section">
     <div class="split-panel">
@@ -172,7 +217,27 @@ export function homeView(data) {
     description: BRAND.subtitle,
     active: 'home',
     body,
+    scripts: ['js/public-ai.js'],
   });
+}
+
+/** 详情页右下角的悬浮入口：不遮挡正文，点开才展开对话面板 */
+function floatingAi(context) {
+  return `<div class="ai-fab" data-ai-fab>
+    <button class="ai-fab-toggle" type="button" data-ai-toggle aria-label="打开 AI 小助手">问 AI</button>
+    <div class="ai-fab-panel" data-ai-panel hidden>
+      <header class="ai-fab-head">
+        <strong>AI 小助手</strong>
+        <button type="button" class="ai-fab-close" data-ai-close aria-label="收起">×</button>
+      </header>
+      ${guestAiPanel({
+        uid: 'detail',
+        variant: 'fab',
+        intro: `关于${h(context)}，你可以问我它的来历、技艺特点或相关项目。`,
+        placeholder: `就${h(context)}提问…`,
+      })}
+    </div>
+  </div>`;
 }
 
 function filterBar({ resource, query, dicts, levels, categories, regions, extra = '' }) {
@@ -247,11 +312,12 @@ export function projectDetailView(data) {
   const tags = [project.category_name, project.level_name, project.batch].filter(Boolean);
   const meta = [
     ['项目编号', project.code],
+    ['官方编号', project.source_code],
     ['所属类别', project.category_name],
     ['名录级别', project.level_name],
     ['公布批次', project.batch],
     ['公布年份', project.published_year],
-    ['申报地区', project.region_label],
+    ['申报地区', project.region_text || project.region_label],
     ['保护单位', project.organization_name || project.protection_unit],
   ]
     .filter(([, value]) => value)
@@ -295,6 +361,11 @@ export function projectDetailView(data) {
   <section class="wrap detail-body">
     <div class="detail-main">
       <dl class="meta-grid">${meta}</dl>
+      ${
+        PORTAL.showContentSource && project.content_source
+          ? `<p class="content-source">内容来源：${h(project.content_source)}${project.content_source.includes('AI') ? '（AI 起草，已由人工校对）' : ''}</p>`
+          : ''
+      }
       ${project.history ? `<section class="block"><h2 class="section-title">历史渊源</h2><p class="prose">${h(project.history)}</p></section>` : ''}
       ${project.feature ? `<section class="block"><h2 class="section-title">技艺特征与表现形态</h2><p class="prose">${h(project.feature)}</p></section>` : ''}
       ${project.lineage ? `<section class="block"><h2 class="section-title">传承谱系</h2><p class="prose">${h(project.lineage)}</p></section>` : ''}
@@ -312,12 +383,14 @@ export function projectDetailView(data) {
       ${project.keywords ? `<div class="side-card"><h3>关键词</h3><div class="chip-row">${String(project.keywords).split(/[、,，;；]+/).filter(Boolean).map((k) => `<a class="chip chip-link" href="/projects?q=${encodeURIComponent(k)}">${h(k)}</a>`).join('')}</div></div>` : ''}
       ${related && related.length ? `<div class="side-card"><h3>相关传承人</h3><ul class="side-list">${related.map((r) => `<li><a href="/inheritors/${r.id}">${h(r.name)}</a><span>${h(r.level_name || '')}</span></li>`).join('')}</ul></div>` : ''}
     </aside>
-  </section>`;
+  </section>
+  ${floatingAi(project.name)}`;
   return portalLayout({
     title: project.name,
     description: truncate(project.summary, 120),
     active: 'projects',
     body,
+    scripts: ['js/public-ai.js'],
   });
 }
 
@@ -365,12 +438,66 @@ export function inheritorDetailView(data) {
     <aside class="detail-side">
       <div class="side-card"><h3>联系与探访</h3><p>希望向传承人学习或采访记录，可联系当地保护单位协助对接，请尊重传承人的正常生活与工作安排。</p></div>
     </aside>
-  </section>`;
+  </section>
+  ${floatingAi(`${person.name}的相关内容`)}`;
   return portalLayout({
     title: `${person.name} · 传承人`,
     description: truncate(person.story_title || person.skill || `${person.name} - ${BRAND.name}`, 120),
     active: 'inheritors',
     body,
+    scripts: ['js/public-ai.js'],
+  });
+}
+
+/**
+ * 探访线索页：按省级行政区聚合，只呈现官方名录可支撑的事实。
+ * 已核实（verified=1）的基地才展示地址与电话。
+ */
+export function visitGuideView({ provinces = [], verifiedOrganizations = [] }) {
+  const cards = provinces.map(provinceCard).join('');
+  const verifiedBlock = verifiedOrganizations.length
+    ? `<section class="section">
+        <header class="section-head"><div><h2 class="section-title">已核实的保护单位</h2><p class="section-sub">以下信息已由保护单位或当地文旅部门核实。</p></div></header>
+        <div class="card-grid">${verifiedOrganizations
+          .map(
+            (org) => `<article class="card card-visit"><div class="card-body">
+              <div class="card-tags"><span class="chip chip-green">已核实</span><span class="chip chip-plain">${h(org.org_type || '保护单位')}</span></div>
+              <h3 class="card-title">${h(org.name)}</h3>
+              <ul class="card-meta-list">
+                <li><b>地址</b>${h(org.address || '—')}</li>
+                <li><b>开放</b>${h(org.open_hours || '请电话咨询')}</li>
+                <li><b>电话</b>${h(org.phone || '—')}</li>
+              </ul>
+              ${org.source_url ? `<p class="visit-hint">来源：<a href="${h(org.source_url)}" target="_blank" rel="noopener">${h(org.source_url)}</a></p>` : ''}
+            </div></article>`,
+          )
+          .join('')}</div>
+      </section>`
+    : '';
+
+  const body = `
+  <section class="page-head">
+    <div class="wrap">
+      <nav class="breadcrumb"><a href="/">首页</a><i>/</i><span>探访线索</span></nav>
+      <h1 class="page-title">探访线索</h1>
+      <p class="page-sub">按地区查看国家级非遗分布，规划你的实地探访路线。</p>
+    </div>
+  </section>
+  <section class="wrap section">
+    <div class="visit-note">
+      <b>关于本栏目</b>
+      <p>这里只展示官方名录可支撑的地区与项目信息。具体保护单位、开放时间与预约方式因机构而异，请以当地文化和旅游部门公布信息为准；我们不会展示未核实的联系方式。</p>
+    </div>
+    <div class="card-grid">${cards || emptyState('暂无探访线索')}</div>
+  </section>
+  <div class="wrap">${verifiedBlock}</div>`;
+
+  return portalLayout({
+    title: '探访线索',
+    description: `国家级非遗分布与探访线索 - ${BRAND.name}`,
+    active: 'organizations',
+    body,
+    scripts: ['js/public-ai.js'],
   });
 }
 

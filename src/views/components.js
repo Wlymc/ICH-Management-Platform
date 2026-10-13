@@ -96,7 +96,7 @@ export function videoEmbed(url) {
   return `<div class="video-frame video-fallback"><p>该影像来自外部平台，点击下方链接观看。</p><a class="btn btn-primary" href="${safe}" target="_blank" rel="noopener noreferrer">打开视频页面 ↗</a></div>`;
 }
 
-export function gallery(attachments, { title = '影像与档案' } = {}) {
+export function gallery(attachments, { title = '影像与档案', columns = 2, showSource = true } = {}) {
   const images = attachments.filter((a) => a.kind === 'image' && a.file_path);
   const others = attachments.filter((a) => a.kind !== 'image');
   if (!images.length && !others.length) return '';
@@ -119,9 +119,43 @@ export function gallery(attachments, { title = '影像与档案' } = {}) {
       </li>`;
     })
     .join('');
+  // 版权留痕：把来源类型汇总成一行标注，答辩时可直接说明图片来路
+  const sourceKinds = [...new Set(attachments.map((item) => item.source_kind).filter(Boolean))];
+  const sourceNote =
+    showSource && sourceKinds.length
+      ? `<p class="gallery-source">图片来源：${h(sourceKinds.join('、'))}；仅用于教学演示，如涉版权请联系删除。</p>`
+      : '';
   return `<section class="gallery-block">
     <h2 class="section-title">${h(title)}</h2>
-    ${imgHtml ? `<div class="gallery-grid">${imgHtml}</div>` : ''}
+    ${imgHtml ? `<div class="gallery-grid${columns === 2 ? ' is-2col' : ''}">${imgHtml}</div>` : ''}
     ${otherHtml ? `<ul class="file-list">${otherHtml}</ul>` : ''}
+    ${sourceNote}
   </section>`;
+}
+
+const GUEST_AI_SAMPLES = [
+  '苏绣用什么材料',
+  '苗族古歌讲的是什么',
+  '内蒙古有哪些国家级非遗',
+  '传统技艺类项目有哪些',
+];
+
+/**
+ * 游客 AI 小助手面板（首页区块与详情页悬浮入口共用）。
+ * 通过 data-ai-root 标记，由 public/js/public-ai.js 统一接管交互。
+ */
+export function guestAiPanel({ uid, variant = 'inline', intro = '', placeholder = '输入你想了解的非遗…' }) {
+  const samples = GUEST_AI_SAMPLES.map(
+    (text) => `<button type="button" class="ai-sample" data-ask="${h(text)}">${h(text)}</button>`,
+  ).join('');
+  return `<div class="ai-root is-${variant}" data-ai-root data-uid="${h(uid)}">
+    <div class="ai-thread" data-ai-thread>
+      <div class="ai-msg is-bot">${h(intro || '你好，我是非遗小助手。可以问我某个项目的来历与技艺，或者让我帮你找某类非遗。')}</div>
+    </div>
+    <form class="ai-form" data-ai-form>
+      <input class="ai-input" data-ai-input maxlength="200" autocomplete="off" placeholder="${h(placeholder)}">
+      <button class="btn btn-primary" type="submit" data-ai-send>提问</button>
+    </form>
+    <div class="ai-samples"><span class="ai-samples-label">试试：</span>${samples}</div>
+  </div>`;
 }

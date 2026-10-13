@@ -1,5 +1,6 @@
 import { all, get, insert, run, update, count } from './db.js';
 import { toInt, text, longText } from './util.js';
+import { parseProvince } from './regions.js';
 
 export const DICT_KINDS = {
   category: {
@@ -230,10 +231,35 @@ export function resolveRegion(value) {
   if (d.lookup['region-path'].has(raw)) return d.lookup['region-path'].get(raw);
   const normalized = raw.replace(/\s*[/>、]\s*/g, '/');
   if (d.lookup['region-path'].has(normalized)) return d.lookup['region-path'].get(normalized);
+  // 省级：兼容简称与"含市县"的原文（如「贵州省台江县」→ 贵州省）
+  const provinceName = parseProvince(raw);
+  if (provinceName) {
+    const province = d.regions.find((r) => r.name === provinceName && r.region_level === 'province');
+    if (province) return province.id;
+  }
   const tail = normalized.split('/').pop();
   const matches = d.regions.filter((r) => r.name === tail || `${r.name}` === raw);
   if (matches.length === 1) return matches[0].id;
   return null;
+}
+
+/**
+ * 解析「申报地区或单位」这类可能多值的文本：
+ * 官方名录里常写成「南京市、苏州市」，返回去重后的地区 id 数组。
+ */
+export function resolveRegionList(value, { max = 8 } = {}) {
+  if (value === null || value === undefined) return [];
+  const parts = String(value)
+    .split(/[、,，;；/|\n]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const ids = [];
+  for (const part of parts) {
+    const id = resolveRegion(part);
+    if (id && !ids.includes(id)) ids.push(id);
+    if (ids.length >= max) break;
+  }
+  return ids;
 }
 
 export function resolveRef(refName, value) {

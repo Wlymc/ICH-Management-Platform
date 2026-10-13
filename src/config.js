@@ -57,6 +57,16 @@ export const PAGE_SIZE = 12;
 export const ADMIN_PAGE_SIZE = 15;
 
 /**
+ * 门户开关。
+ * showVisitSection：保护单位数据补齐后改为 true，门户即出现「探访体验点」栏目。
+ * showContentSource：详情页标注内容来源（官方名录 / AI 起草后人工定稿）。
+ */
+export const PORTAL = {
+  showVisitSection: true,
+  showContentSource: true,
+};
+
+/**
  * 静态资源版本号：取 public/ 下最新修改时间。
  * 页面里以 /assets/xxx.css?v=... 引用，避免浏览器沿用缓存的旧样式。
  */

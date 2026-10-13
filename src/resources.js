@@ -12,6 +12,24 @@ export const STATUS = {
 
 export const GENDER_OPTIONS = ['男', '女'];
 
+/** 十大类目的口语别名，用于自然语言指令里识别类别（如“技艺类项目”） */
+export const CATEGORY_ALIASES = {
+  民间文学: ['民间文学', '文学'],
+  传统音乐: ['传统音乐', '音乐'],
+  传统舞蹈: ['传统舞蹈', '舞蹈'],
+  传统戏剧: ['传统戏剧', '戏剧', '戏曲'],
+  曲艺: ['曲艺'],
+  '传统体育、游艺与杂技': ['传统体育、游艺与杂技', '传统体育', '游艺', '杂技'],
+  传统美术: ['传统美术', '美术'],
+  传统技艺: ['传统技艺', '技艺'],
+  传统医药: ['传统医药', '医药'],
+  民俗: ['民俗'],
+};
+
+export function categoryAliases(name) {
+  return CATEGORY_ALIASES[name] || [String(name)];
+}
+
 export const GROUPS = {
   basic: '基本信息',
   content: '内容描述',
@@ -37,6 +55,9 @@ export const RESOURCES = {
     fields: [
       f({ name: 'code', label: '项目编号', type: 'text', group: 'basic', required: true, list: true, import: true, width: 130, placeholder: '例：JS-Ⅷ-0001', span: 'half' }),
       f({ name: 'name', label: '项目名称', type: 'text', group: 'basic', required: true, list: true, search: true, import: true, width: 220, span: 'half' }),
+      f({ name: 'source_code', label: '官方编号', type: 'text', group: 'basic', list: true, import: true, width: 100, aliases: ['编号', '项目官方编号'], help: '官方名录编号，如 Ⅷ-15；与内部编号分开存储' }),
+      f({ name: 'region_text', label: '申报地区原文', type: 'text', group: 'basic', list: true, import: true, width: 190, aliases: ['申报地区或单位'], help: '按官方原文保存，如“江苏省宜兴市”；不做强制字典匹配' }),
+      f({ name: 'content_source', label: '内容来源', type: 'select', options: ['官方名录', 'AI 起草', '人工定稿', '传承人提供'], group: 'basic', list: true, import: true, width: 110, aliases: ['来源'], help: '用于在门户标注内容出处，避免把生成内容当作官方表述' }),
       f({ name: 'category_id', label: '所属类别', type: 'ref', ref: 'category', group: 'basic', required: true, list: true, filter: true, import: true, width: 160, aliases: ['类别'] }),
       f({ name: 'level_id', label: '名录级别', type: 'ref', ref: 'level', group: 'basic', required: true, list: true, filter: true, import: true, width: 110, aliases: ['级别'] }),
       f({ name: 'batch', label: '公布批次', type: 'dict', dict: 'batch', group: 'basic', list: true, filter: true, import: true, width: 110, aliases: ['批次'] }),
@@ -51,6 +72,7 @@ export const RESOURCES = {
       f({ name: 'lineage', label: '传承谱系', type: 'textarea', group: 'heritage', import: true, rows: 5, span: 'full' }),
       f({ name: 'keywords', label: '关键词', type: 'text', group: 'heritage', import: true, span: 'full', help: '多个关键词用顿号分隔，用于门户检索' }),
       f({ name: 'video_url', label: '影像视频外链', type: 'url', group: 'media', import: true, span: 'full', aliases: ['视频链接'], help: '支持哔哩哔哩、腾讯视频等页面地址，详情页将内嵌播放' }),
+      f({ name: 'source_url', label: '资料来源链接', type: 'url', group: 'media', import: true, span: 'full', aliases: ['来源链接', '详情页'], help: '官方名录页或资料来源页，便于答辩追溯' }),
       f({ name: 'cover_path', label: '封面图', type: 'image', group: 'media', span: 'full', list: true, width: 80 }),
     ],
     related: [
@@ -72,6 +94,8 @@ export const RESOURCES = {
     fields: [
       f({ name: 'code', label: '传承人编号', type: 'text', group: 'basic', required: true, list: true, import: true, width: 130, placeholder: '例：JS-VIII-0001' }),
       f({ name: 'name', label: '姓名', type: 'text', group: 'basic', required: true, list: true, search: true, import: true, width: 110 }),
+      f({ name: 'source_code', label: '官方编号', type: 'text', group: 'basic', list: true, import: true, width: 110, aliases: ['传承人序号', '序号'], help: '传承人官方编号，如 05-1999' }),
+      f({ name: 'career_start_year', label: '从业起始年', type: 'year', group: 'basic', import: true, width: 110, aliases: ['起始年'], min: 1900, max: 2100, help: '出生年月缺失时的替代口径，用于“从业年限”筛选' }),
       f({ name: 'gender', label: '性别', type: 'select', options: GENDER_OPTIONS, group: 'basic', list: true, filter: true, import: true, width: 70 }),
       f({ name: 'ethnic', label: '民族', type: 'text', group: 'basic', list: true, import: true, width: 90 }),
       f({ name: 'birth_month', label: '出生年月', type: 'month', group: 'basic', import: true, width: 110, placeholder: '1958-06' }),
@@ -86,6 +110,8 @@ export const RESOURCES = {
       f({ name: 'skill', label: '技艺特点', type: 'textarea', group: 'content', import: true, rows: 6, span: 'full' }),
       f({ name: 'honors', label: '代表作品与荣誉', type: 'textarea', group: 'content', import: true, rows: 5, span: 'full' }),
       f({ name: 'video_url', label: '影像视频外链', type: 'url', group: 'media', import: true, span: 'full' }),
+      f({ name: 'source_url', label: '资料来源链接', type: 'url', group: 'media', import: true, span: 'full', aliases: ['来源链接', '传承人详情页'] }),
+      f({ name: 'data_note', label: '数据核验说明', type: 'textarea', group: 'content', import: true, rows: 3, span: 'full', aliases: ['匹配说明', '核验说明'], help: '记录该条传承人信息的来源与核验情况，答辩时可追溯' }),
       f({ name: 'photo_path', label: '肖像照', type: 'image', group: 'media', span: 'full', list: true, width: 80 }),
     ],
     related: [

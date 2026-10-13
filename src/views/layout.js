@@ -1,4 +1,4 @@
-import { ASSET_VERSION, BRAND } from '../config.js';
+import { ASSET_VERSION, BRAND, PORTAL } from '../config.js';
 import { h } from '../util.js';
 
 export function asset(path) {
@@ -11,16 +11,24 @@ export function uploadUrl(filePath) {
   return `/uploads/${String(filePath).split('/').map(encodeURIComponent).join('/')}`;
 }
 
-const PORTAL_NAV = [
+const PORTAL_NAV_BASE = [
   { href: '/', label: '首页', key: 'home' },
   { href: '/projects', label: '逛非遗', key: 'projects' },
   { href: '/inheritors', label: '传承人', key: 'inheritors' },
-  { href: '/organizations', label: '探访体验点', key: 'organizations' },
 ];
 
-export function portalLayout({ title, description = '', active = '', body, keyword = '', bodyClass = '' }) {
+function portalNav() {
+  const items = [...PORTAL_NAV_BASE];
+  // 保护单位数据补齐前不展示「探访体验点」，避免栏目空着
+  if (PORTAL.showVisitSection) {
+    items.push({ href: '/organizations', label: '探访线索', key: 'organizations' });
+  }
+  return items;
+}
+
+export function portalLayout({ title, description = '', active = '', body, keyword = '', bodyClass = '', scripts = [] }) {
   const fullTitle = title ? `${title} · ${BRAND.name}` : BRAND.name;
-  const nav = PORTAL_NAV.map(
+  const nav = portalNav().map(
     (item) =>
       `<a class="nav-link${active === item.key ? ' is-active' : ''}" href="${item.href}">${h(item.label)}</a>`,
   ).join('');
@@ -56,6 +64,7 @@ export function portalLayout({ title, description = '', active = '', body, keywo
   </div>
 </header>
 <main class="site-main">${body}</main>
+${scripts.map((name) => `<script src="${asset(String(name).replace(/^\/assets\//, ''))}"></script>`).join('')}
 <footer class="site-footer">
   <div class="wrap footer-inner">
     <div>
@@ -65,7 +74,7 @@ export function portalLayout({ title, description = '', active = '', body, keywo
     <div class="footer-links">
       <a href="/projects">非遗项目</a>
       <a href="/inheritors">传承人</a>
-      <a href="/organizations">探访体验点</a>
+      ${PORTAL.showVisitSection ? '<a href="/organizations">探访线索</a>' : ''}
       <a href="/admin">管理端登录</a>
     </div>
   </div>
@@ -81,6 +90,7 @@ const ADMIN_NAV = [
   { href: '/admin/projects', label: '非遗项目', key: 'project', icon: '▣' },
   { href: '/admin/inheritors', label: '传承人', key: 'inheritor', icon: '☰' },
   { href: '/admin/organizations', label: '传承基地', key: 'organization', icon: '⌂' },
+  { href: '/admin/copilot', label: 'AI 小助手', key: 'copilot', icon: '✦' },
 ];
 
 const ADMIN_REVIEW_NAV = [
@@ -88,6 +98,8 @@ const ADMIN_REVIEW_NAV = [
 ];
 
 const ADMIN_SYSTEM_NAV = [
+  { href: '/admin/knowledge', label: '知识条目', key: 'knowledge', icon: '✎' },
+  { href: '/admin/ai', label: 'AI 配置', key: 'ai', icon: '⚙', adminOnly: true },
   { href: '/admin/dict', label: '数据字典', key: 'dict', icon: '≡' },
   { href: '/admin/users', label: '用户管理', key: 'users', icon: '☺', adminOnly: true },
   { href: '/admin/logs', label: '操作日志', key: 'logs', icon: '⏱', adminOnly: true },

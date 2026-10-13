@@ -202,6 +202,115 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
     `,
   },
+  {
+    version: 2,
+    name: 'national-data-and-ai',
+    sql: `
+      -- 项目：官方编号、申报地区原文、内容来源、来源链接
+      ALTER TABLE project ADD COLUMN source_code TEXT NOT NULL DEFAULT '';
+      ALTER TABLE project ADD COLUMN region_text TEXT NOT NULL DEFAULT '';
+      ALTER TABLE project ADD COLUMN content_source TEXT NOT NULL DEFAULT 'official';
+      ALTER TABLE project ADD COLUMN source_url TEXT NOT NULL DEFAULT '';
+
+      -- 传承人：官方编号、从业起始年、来源链接、数据备注
+      ALTER TABLE inheritor ADD COLUMN source_code TEXT NOT NULL DEFAULT '';
+      ALTER TABLE inheritor ADD COLUMN career_start_year INTEGER;
+      ALTER TABLE inheritor ADD COLUMN source_url TEXT NOT NULL DEFAULT '';
+      ALTER TABLE inheritor ADD COLUMN data_note TEXT NOT NULL DEFAULT '';
+
+      -- 申报地区为多值（官方名录常见“南京市、苏州市”）
+      CREATE TABLE IF NOT EXISTS project_region (
+        project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+        region_id INTEGER NOT NULL REFERENCES region(id) ON DELETE CASCADE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (project_id, region_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_project_region_region ON project_region(region_id);
+
+      -- 附件：来源与版权留痕
+      ALTER TABLE attachment ADD COLUMN source_kind TEXT NOT NULL DEFAULT '';
+      ALTER TABLE attachment ADD COLUMN source_page TEXT NOT NULL DEFAULT '';
+      ALTER TABLE attachment ADD COLUMN source_url TEXT NOT NULL DEFAULT '';
+      ALTER TABLE attachment ADD COLUMN search_page TEXT NOT NULL DEFAULT '';
+      ALTER TABLE attachment ADD COLUMN photographer TEXT NOT NULL DEFAULT '';
+      ALTER TABLE attachment ADD COLUMN license TEXT NOT NULL DEFAULT '';
+      ALTER TABLE attachment ADD COLUMN authorized_at TEXT NOT NULL DEFAULT '';
+
+      -- 知识条目：AI 回答的检索来源，也是后期 DNA 图谱的节点种子
+      CREATE TABLE IF NOT EXISTS knowledge_entry (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL DEFAULT 'term',
+        title TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        summary TEXT NOT NULL DEFAULT '',
+        tags TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT '',
+        source_url TEXT NOT NULL DEFAULT '',
+        project_id INTEGER REFERENCES project(id) ON DELETE SET NULL,
+        status TEXT NOT NULL DEFAULT 'published',
+        created_by INTEGER REFERENCES app_user(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_knowledge_kind ON knowledge_entry(kind);
+      CREATE INDEX IF NOT EXISTS idx_knowledge_project ON knowledge_entry(project_id);
+
+      -- AI 会话与消息（消息里存命中的来源与跳转链接，便于"标注知识来源"与审计）
+      CREATE TABLE IF NOT EXISTS ai_session (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER REFERENCES app_user(id) ON DELETE CASCADE,
+        title TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_message (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL REFERENCES ai_session(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        kind TEXT NOT NULL DEFAULT 'answer',
+        degraded INTEGER NOT NULL DEFAULT 0,
+        links TEXT NOT NULL DEFAULT '[]',
+        sources TEXT NOT NULL DEFAULT '[]',
+        model TEXT NOT NULL DEFAULT '',
+        tokens INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_message_session ON ai_message(session_id, id);
+
+      -- 中文全文检索：默认 unicode61 分词器对中文无效，必须用 trigram
+      CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+        ref_type UNINDEXED,
+        ref_id UNINDEXED,
+        title,
+        body,
+        tokenize='trigram'
+      );
+    `,
+  },
+  {
+    version: 3,
+    name: 'guest-ai-and-image-metrics',
+    sql: `
+      -- 图片尺寸：缺图清单与规格体检需要，导入时写入
+      ALTER TABLE attachment ADD COLUMN width INTEGER;
+      ALTER TABLE attachment ADD COLUMN height INTEGER;
+
+      -- 基地核实标记：只有核实通过的记录才在门户展示地址与电话
+      ALTER TABLE organization ADD COLUMN verified INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE organization ADD COLUMN verified_at TEXT;
+      ALTER TABLE organization ADD COLUMN source_url TEXT NOT NULL DEFAULT '';
+
+      -- 游客接口限流（按 IP + 时间窗）
+      CREATE TABLE IF NOT EXISTS rate_limit (
+        bucket TEXT PRIMARY KEY,
+        hits INTEGER NOT NULL DEFAULT 0,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_rate_limit_expires ON rate_limit(expires_at);
+    `,
+  },
 ];
 
 function migrate() {

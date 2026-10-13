@@ -5,7 +5,14 @@ import { listAttachments } from '../service.js';
 import { getResource } from '../resources.js';
 import { clamp, paginate, toInt } from '../util.js';
 import { sendNotFound, sendHtml, parseQuery } from '../http.js';
-import { homeView, listView, projectDetailView, inheritorDetailView, organizationDetailView } from '../views/portal.js';
+import {
+  homeView,
+  listView,
+  projectDetailView,
+  inheritorDetailView,
+  organizationDetailView,
+  visitGuideView,
+} from '../views/portal.js';
 
 const PROJECT_SELECT = `SELECT t.*, c.name AS category_name, c.code AS category_code, c.sort_order AS category_order,
     l.name AS level_name, l.sort_order AS level_order, r.name AS region_name, o.name AS organization_name
@@ -168,21 +175,82 @@ function homeData() {
     attachments: count('SELECT COUNT(*) AS n FROM attachment'),
   };
 
-  return { stats, categories, levels, projects, inheritors, organizations, images: imageItems, regions };
+  return {
+    stats,
+    categories,
+    levels,
+    projects,
+    inheritors,
+    organizations,
+    images: imageItems,
+    regions,
+    visitProvinces: buildVisitProvinces(),
+  };
+}
+
+/**
+ * 探访线索：按省级行政区聚合官方名录事实，不含未核实的联系方式。
+ */
+function buildVisitProvinces() {
+  const rows = all(
+    `SELECT r.id, r.name,
+       (SELECT COUNT(*) FROM project p WHERE p.status = 'published'
+          AND (p.region_id = r.id
+               OR EXISTS (SELECT 1 FROM project_region pr WHERE pr.project_id = p.id AND pr.region_id = r.id))) AS project_count,
+       (SELECT COUNT(*) FROM inheritor i WHERE i.status = 'published' AND i.region_id = r.id) AS inheritor_count
+     FROM region r
+     WHERE r.region_level = 'province'
+     ORDER BY project_count DESC, r.sort_order`,
+  )
+    .map((row) => ({
+      id: Number(row.id),
+      name: row.name,
+      projectCount: Number(row.project_count),
+      inheritorCount: Number(row.inheritor_count),
+      samples: [],
+    }))
+    .filter((item) => item.projectCount > 0 || item.inheritorCount > 0);
+
+  for (const province of rows.slice(0, 12)) {
+    province.samples = all(
+      `SELECT p.id, p.name FROM project p
+       WHERE p.status = 'published'
+         AND (p.region_id = ? OR EXISTS (SELECT 1 FROM project_region pr WHERE pr.project_id = p.id AND pr.region_id = ?))
+       ORDER BY p.name LIMIT 3`,
+      [province.id, province.id],
+    );
+  }
+  return rows;
 }
 
 export function handlePortal(req, res, url) {
   const pathname = url.pathname;
   const query = parseQuery(url);
   const d = dicts();
-  const regionOptions = () => d.regions.map((r) => ({ id: r.id, label: d.regionLabel(r.id) }));
+  // 只做国家级，地区筛选收敛到省级（34 个），避免下拉里塞进几千条市县级
+  const regionOptions = () =>
+    d.regions
+      .filter((r) => r.region_level === 'province')
+      .map((r) => ({ id: r.id, label: r.name }));
 
   if (pathname === '/') {
     sendHtml(res, homeView(homeData()));
     return true;
   }
 
-  if (pathname === '/projects' || pathname === '/inheritors' || pathname === '/organizations') {
+  if (pathname === '/organizations') {
+    // 探访线索：按省份聚合官方名录事实；只有核实过的基地才展示联系方式
+    const verifiedOrganizations = all(
+      `SELECT o.*, r.name AS region_name FROM organization o
+       LEFT JOIN region r ON r.id = o.region_id
+       WHERE o.status = 'published' AND o.verified = 1
+       ORDER BY o.name`,
+    );
+    sendHtml(res, visitGuideView({ provinces: buildVisitProvinces(), verifiedOrganizations }));
+    return true;
+  }
+
+  if (pathname === '/projects' || pathname === '/inheritors') {
     const config = {
       '/projects': {
         key: 'project',
@@ -197,13 +265,6 @@ export function handlePortal(req, res, url) {
         table: 'inheritor',
         searchColumns: ['t.name', 't.skill', 't.story_title', 't.address', 't.code'],
         order: 'l.sort_order, t.updated_at DESC',
-      },
-      '/organizations': {
-        key: 'organization',
-        select: ORG_SELECT,
-        table: 'organization',
-        searchColumns: ['t.name', 't.address', 't.experience', 't.intro', 't.org_type'],
-        order: 't.is_open DESC, t.updated_at DESC',
       },
     }[pathname];
     const pageInfo = publicList({ ...config, query });

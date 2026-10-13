@@ -32,7 +32,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 /* 关键：作者样式里的 display 会覆盖浏览器对 hidden 属性的默认 display:none，
-   必须显式声明，否则带hidden 的遮罩层会全屏拦截点击。 */
+   必须显式声明，否则带 hidden 的遮罩层会全屏拦截点击。 */
 [hidden] { display: none !important; }
 
 html, body { margin: 0; padding: 0; }

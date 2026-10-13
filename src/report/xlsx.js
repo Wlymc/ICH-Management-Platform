@@ -150,17 +150,74 @@ function zip(files) {
   return Buffer.concat([...localParts, centralBuffer, end]);
 }
 
-export function buildXlsx({ sheetName = 'Sheet1', headers, rows, columnWidths }) {
-  const widths = columnWidths && columnWidths.length ? columnWidths : headers.map(() => 18);
-  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xmlEscape(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+/** Excel 工作表名限制：≤31 字符、不含 []:*?/\ 且不能重复 */
+function safeSheetName(name, index) {
+  const cleaned = String(name || `Sheet${index + 1}`).replace(/[\\/:*?[\]]/g, ' ').trim().slice(0, 31);
+  return cleaned || `Sheet${index + 1}`;
+}
 
-  return zip([
-    { name: '[Content_Types].xml', data: CONTENT_TYPES },
+/**
+ * 生成多工作表 .xlsx。
+ * sheets: [{ name, headers, rows, columnWidths }]
+ */
+export function buildWorkbook({ sheets }) {
+  const list = sheets && sheets.length ? sheets : [{ name: 'Sheet1', headers: [], rows: [] }];
+  const used = new Set();
+  const normalized = list.map((sheet, index) => {
+    let name = safeSheetName(sheet.name, index);
+    let suffix = 2;
+    while (used.has(name)) {
+      name = `${safeSheetName(sheet.name, index).slice(0, 28)}_${suffix}`;
+      suffix += 1;
+    }
+    used.add(name);
+    return { ...sheet, name };
+  });
+
+  const sheetTags = normalized
+    .map((sheet, index) => `<sheet name="${xmlEscape(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`)
+    .join('');
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheetTags}</sheets></workbook>`;
+
+  const relTags = normalized
+    .map(
+      (sheet, index) =>
+        `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`,
+    )
+    .join('');
+  const stylesRelId = `rId${normalized.length + 1}`;
+  const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relTags}<Relationship Id="${stylesRelId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+
+  const overrideTags = normalized
+    .map(
+      (sheet, index) =>
+        `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
+    )
+    .join('');
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${overrideTags}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+
+  const files = [
+    { name: '[Content_Types].xml', data: contentTypes },
     { name: '_rels/.rels', data: ROOT_RELS },
     { name: 'xl/workbook.xml', data: workbook },
-    { name: 'xl/_rels/workbook.xml.rels', data: WORKBOOK_RELS },
+    { name: 'xl/_rels/workbook.xml.rels', data: workbookRels },
     { name: 'xl/styles.xml', data: STYLES },
-    { name: 'xl/worksheets/sheet1.xml', data: sheetXml(headers, rows, widths) },
-  ]);
+  ];
+  normalized.forEach((sheet, index) => {
+    const headers = sheet.headers || [];
+    const widths = sheet.columnWidths && sheet.columnWidths.length ? sheet.columnWidths : headers.map(() => 18);
+    files.push({
+      name: `xl/worksheets/sheet${index + 1}.xml`,
+      data: sheetXml(headers, sheet.rows || [], widths),
+    });
+  });
+  return zip(files);
+}
+
+/** 单工作表（保持既有调用方兼容） */
+export function buildXlsx({ sheetName = 'Sheet1', headers, rows, columnWidths }) {
+  return buildWorkbook({ sheets: [{ name: sheetName, headers, rows, columnWidths }] });
 }

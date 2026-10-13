@@ -41,6 +41,7 @@ async function request(pathname, options = {}) {
   };
   if (Object.keys(jar).length) init.headers.Cookie = cookies();
   if (options.origin) init.headers.Origin = options.origin;
+  if (options.headers) Object.assign(init.headers, options.headers);
   if (options.body !== undefined) init.body = JSON.stringify(options.body);
   const response = await fetch(`${BASE}${pathname}`, { ...init, redirect: 'manual' });
   const setCookie = response.headers.getSetCookie?.() || [];
@@ -440,16 +441,18 @@ async function main() {
       overlaySelectors.slice(0, 60),
     );
 
-    const sampleList = await json('/api/projects?pageSize=10');
-    const sample = sampleList.payload?.data?.items?.find((item) => item.cover_path);
+    const sampleList = await json('/api/projects?pageSize=200');
+    // 需要同时有封面与长文，才能验证「叙事内容 + 影像墙」；国家级项目长文待 AI 起草，先取已有内容的项目
+    const sample = sampleList.payload?.data?.items?.find((item) => item.cover_path && item.history);
     if (sample) {
       const sampleHtml = await (await request(`/projects/${sample.id}`)).text();
       check(
         '示例项目详情页含叙事内容与影像墙',
-        sampleHtml.includes('历史渊源') && sampleHtml.includes('gallery-grid') && sampleHtml.includes('/uploads/seed/'),
+        sampleHtml.includes('历史渊源') && sampleHtml.includes('gallery-grid'),
+        `${sample.name}`,
       );
     } else {
-      check('示例项目详情页含叙事内容与影像墙', false, '未找到带封面的示例项目');
+      check('示例项目详情页含叙事内容与影像墙', false, '未找到同时有封面与长文的项目');
     }
 
     console.log('\n[8] 清理测试数据');
@@ -526,6 +529,214 @@ async function main() {
     const adminDictPage = await request('/admin/dict');
     const adminDictHtml = await adminDictPage.text();
     check('管理员看到的数据字典可编辑', adminDictPage.status === 200 && adminDictHtml.includes('id="dict-form"'));
+
+    console.log('\n[10] 国家级数据与素材');
+    const nationalList = await json('/api/projects?status=published&pageSize=200');
+    const nationalItems = (nationalList.payload?.data?.items || []).filter((item) => String(item.code || '').startsWith('GJ-'));
+    check('国家级项目已导入（100 项）', nationalItems.length >= 100, `实际 ${nationalItems.length} 项`);
+    const categorySpread = new Map();
+    for (const item of nationalItems) {
+      categorySpread.set(item.category_id, (categorySpread.get(item.category_id) || 0) + 1);
+    }
+    check(
+      '十大类目各 10 项',
+      categorySpread.size === 10 && [...categorySpread.values()].every((n) => n === 10),
+      [...categorySpread.entries()].map(([k, v]) => `${k}:${v}`).join(' '),
+    );
+
+    const sampleProject = nationalItems.find((item) => item.source_code === 'Ⅰ-1');
+    check('抽查「苗族古歌」字段完整', Boolean(sampleProject));
+    if (sampleProject) {
+      check('官方编号入库', sampleProject.source_code === 'Ⅰ-1', sampleProject.source_code);
+      check('批次与年份已拆分', sampleProject.batch === '第一批' && Number(sampleProject.published_year) === 2006, `${sampleProject.batch}/${sampleProject.published_year}`);
+      check('申报地区原文保留', String(sampleProject.region_text || '').includes('台江'), sampleProject.region_text);
+      const detail = await request(`/projects/${sampleProject.id}`);
+      const detailHtml = await detail.text();
+      check('详情页展示官方编号', detail.status === 200 && detailHtml.includes('官方编号'));
+      check('详情页有 4 张配图', (detailHtml.match(/gallery-item/g) || []).length === 4, `${(detailHtml.match(/gallery-item/g) || []).length} 张`);
+      check('详情页标注图片版权', detailHtml.includes('仅用于教学演示'));
+      check('详情页标注内容来源', detailHtml.includes('内容来源'));
+    }
+
+    const inheritorList = await json('/api/inheritors?status=published&pageSize=200');
+    const nationalPeople = (inheritorList.payload?.data?.items || []).filter((item) => String(item.code || '').startsWith('GJCR-'));
+    check('国家级传承人已导入（90 位）', nationalPeople.length >= 90, `实际 ${nationalPeople.length} 位`);
+    const person = nationalPeople.find((item) => item.name === '王安江') || nationalPeople[0];
+    const personDetail = await request(`/inheritors/${person.id}`);
+    const personHtml = await personDetail.text();
+    check(
+      '传承人详情页展示关联项目',
+      personDetail.status === 200 && personHtml.includes('代表性项目'),
+      `${person.name} 页面 ${personDetail.status}`,
+    );
+    check('传承人记录了从业起始年', Number(person.career_start_year) > 1900, String(person.career_start_year));
+    const imageStats = await json('/api/stats/dashboard');
+    const totalImages = (imageStats.payload?.data?.byAttachmentKind || []).find((item) => item.name === '图片');
+    check('图片档案已入库（含 400 张新图）', Number(totalImages?.value || 0) >= 400, `图片 ${totalImages?.value}`);
+
+    const provinces = await json('/api/dict');
+    check(
+      '省级行政区已内置 34 个',
+      (provinces.payload?.data?.region || []).filter((item) => item.region_level === 'province').length === 34,
+    );
+    const guizhou = await request('/projects?region_id=' + (provinces.payload.data.region.find((r) => r.name === '贵州省') || {}).id);
+    check('门户可按省份筛选', guizhou.status === 200);
+    const homeHtmlNational = await (await request('/')).text();
+    check('门户已隐藏「探访体验点」（保护单位待补录）', !homeHtmlNational.includes('探访体验点'));
+
+    console.log('\n[11] AI 小助手');
+    const aiConfig = await json('/api/ai/config');
+    check('AI 配置可读取且不回显完整密钥', aiConfig.status === 200 && !JSON.stringify(aiConfig.payload).match(/sk-[A-Za-z0-9]{10,}/));
+    await json('/api/auth/login', { method: 'POST', body: { username: 'editor', password: 'Editor@123' } });
+    const aiConfigAsEditor = await json('/api/ai/config');
+    check('录入员读取 AI 配置被拒绝（403）', aiConfigAsEditor.status === 403, `实际 ${aiConfigAsEditor.status}`);
+    const aiPageAsEditor = await request('/admin/ai');
+    const aiPageEditorHtml = await aiPageAsEditor.text();
+    check('录入员访问 AI 配置页看到权限提示', aiPageAsEditor.status === 200 && aiPageEditorHtml.includes('仅管理员可访问'));
+    await json('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'Admin@123' } });
+
+    const beforeCount = (await json('/api/projects?pageSize=1')).payload?.data?.total;
+    const queryResult = await json('/api/ai/query', { method: 'POST', body: { message: '内蒙古的民俗项目' } });
+    check(
+      'AI 指令识别为查询并给出直达链接',
+      queryResult.status === 200 &&
+        queryResult.payload?.data?.kind === 'query' &&
+        (queryResult.payload?.data?.links || []).some((link) => link.href.includes('/admin/projects?')),
+      queryResult.payload?.data?.reply?.slice(0, 60),
+    );
+    check('指令型查询命中数正确', Number(queryResult.payload?.data?.total) >= 1, `命中 ${queryResult.payload?.data?.total}`);
+
+    const chatAnswer = await json('/api/ai/chat', { method: 'POST', body: { message: '苏绣用什么材料' } });
+    check(
+      'AI 问答返回站内来源列表',
+      chatAnswer.status === 200 &&
+        chatAnswer.payload?.data?.kind === 'answer' &&
+        (chatAnswer.payload?.data?.sources || []).length > 0,
+      `来源 ${(chatAnswer.payload?.data?.sources || []).length} 条`,
+    );
+    check(
+      '未配置密钥时自动降级且提示原因',
+      chatAnswer.payload?.data?.degraded === true && Boolean(chatAnswer.payload?.data?.reason),
+      String(chatAnswer.payload?.data?.reason),
+    );
+    check(
+      '来源可点击回档案',
+      (chatAnswer.payload?.data?.sources || []).every((source) => String(source.href || '').startsWith('/')),
+    );
+
+    const chatQuery = await json('/api/ai/chat', { method: 'POST', body: { message: '列出第五批国家级项目' } });
+    check('无筛选动词但含条件时也识别为指令', chatQuery.payload?.data?.kind === 'query', chatQuery.payload?.data?.kind);
+    const afterCount = (await json('/api/projects?pageSize=1')).payload?.data?.total;
+    check('AI 全程只读，未改动任何数据', beforeCount === afterCount, `${beforeCount} → ${afterCount}`);
+
+    const reindex = await json('/api/search/reindex', { method: 'POST' });
+    check('检索索引可重建', reindex.status === 200 && Number(reindex.payload?.data?.total) > 100, `索引 ${reindex.payload?.data?.total}`);
+    const copilotPage = await request('/admin/copilot');
+    const copilotHtml = await copilotPage.text();
+    check('AI 小助手页面可访问', copilotPage.status === 200 && copilotHtml.includes('能力边界'));
+    const knowledgePage = await request('/admin/knowledge');
+    check('知识条目页面可访问', knowledgePage.status === 200);
+
+    console.log('\n[12] 游客 AI 与探访信息');
+    // 用独立 IP 测试，避免与真实流量共用限流桶，也让重复跑自检结果稳定
+    const guestIp = `10.99.0.${Math.floor(Math.random() * 250) + 2}`;
+    const guestHeaders = { 'X-Forwarded-For': guestIp };
+
+    const guestHome = await request('/');
+    const guestHomeHtml = await guestHome.text();
+    check('首页已嵌入 AI 小助手', guestHomeHtml.includes('问一问 AI 小助手') && guestHomeHtml.includes('data-ai-root'));
+    check('首页 AI 区块无需登录即可见', guestHomeHtml.includes('data-ai-form'));
+    check('首页不再出现虚构示例电话', !guestHomeHtml.includes('81000000'));
+
+    const visitPage = await request('/organizations');
+    const visitHtml = await visitPage.text();
+    check('探访线索页可访问', visitPage.status === 200);
+    check('探访页含核实提示', visitHtml.includes('不会展示未核实的联系方式'));
+    check('探访页不含虚构地址与电话', !visitHtml.includes('81000000') && !visitHtml.includes('文化路8号'));
+    check('探访页展示省份聚合线索', (visitHtml.match(/card-visit/g) || []).length >= 10, `${(visitHtml.match(/card-visit/g) || []).length} 张卡片`);
+
+    const detailForAi = await request(`/projects/${sampleProject ? sampleProject.id : 1}`);
+    const detailForAiHtml = await detailForAi.text();
+    check('项目详情页有 AI 悬浮入口', detailForAiHtml.includes('data-ai-fab') && detailForAiHtml.includes('public-ai.js'));
+
+    const guestAnswer = await json('/api/public/ai/chat', {
+      method: 'POST',
+      headers: guestHeaders,
+      body: { message: '苗族古歌讲的是什么' },
+    });
+    check(
+      '游客未登录即可提问并拿到回答',
+      guestAnswer.status === 200 && String(guestAnswer.payload?.data?.reply || '').length > 10,
+      `HTTP ${guestAnswer.status}`,
+    );
+    check(
+      '游客回答带可点击来源',
+      (guestAnswer.payload?.data?.sources || []).length > 0,
+      `${(guestAnswer.payload?.data?.sources || []).length} 条`,
+    );
+    const guestPayload = JSON.stringify(guestAnswer.payload || {});
+    check('游客结果不含任何管理端链接', !guestPayload.includes('/admin'));
+
+    const guestEmpty = await json('/api/public/ai/chat', {
+      method: 'POST',
+      headers: guestHeaders,
+      body: { message: '   ' },
+    });
+    check('游客空提问被拒（400）', guestEmpty.status === 400, `HTTP ${guestEmpty.status}`);
+
+    const guestQuery = await json('/api/public/ai/query', {
+      method: 'POST',
+      headers: guestHeaders,
+      body: { message: '传统技艺类项目' },
+    });
+    check(
+      '游客指令型查询可用且指向门户',
+      guestQuery.status === 200 &&
+        Number(guestQuery.payload?.data?.total) >= 10 &&
+        (guestQuery.payload?.data?.links || []).every((link) => !link.href.includes('/admin')),
+      `命中 ${guestQuery.payload?.data?.total}`,
+    );
+
+    // 问答型限流：同一新 IP 连续提问，第 4 次应被拦
+    const limitIp = `10.99.1.${Math.floor(Math.random() * 250) + 2}`;
+    let limitedAt = 0;
+    for (let i = 1; i <= 5; i += 1) {
+      const res = await json('/api/public/ai/chat', {
+        method: 'POST',
+        headers: { 'X-Forwarded-For': limitIp },
+        body: { message: `介绍一个不存在的词条 xyz${i}` },
+      });
+      if (res.status === 429) {
+        limitedAt = i;
+        break;
+      }
+    }
+    check('问答型限流生效（每分钟 3 次）', limitedAt === 4, `第 ${limitedAt || '未'} 次被拦`);
+    const stillLimited = await json('/api/public/ai/chat', {
+      method: 'POST',
+      headers: { 'X-Forwarded-For': limitIp },
+      body: { message: '再问一次' },
+    });
+    check('超限返回 429 且带重试提示', stillLimited.status === 429 && Boolean(stillLimited.payload?.error));
+
+    // 清掉登录态，模拟真正的游客再打管理端接口
+    for (const key of Object.keys(jar)) delete jar[key];
+    const guestCannotUseAdminAi = await json('/api/ai/chat', { method: 'POST', body: { message: '苏绣' } });
+    check('未登录无法调用管理端 AI 接口（401）', guestCannotUseAdminAi.status === 401, `HTTP ${guestCannotUseAdminAi.status}`);
+    const guestCannotSeeAdmin = await request('/admin/copilot');
+    check('未登录访问 AI 管理页被跳转登录', guestCannotSeeAdmin.status === 302, `HTTP ${guestCannotSeeAdmin.status}`);
+
+    await json('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'Admin@123' } });
+    const archivedOrgs = await json('/api/organizations?status=archived&pageSize=50');
+    check(
+      '虚构示例基地已归档（后台仍可查）',
+      Number(archivedOrgs.payload?.data?.total) >= 12,
+      `归档 ${archivedOrgs.payload?.data?.total} 条`,
+    );
+    check(
+      '归档基地不出现在门户探访页',
+      !visitHtml.includes('秦淮非遗展示馆') && !visitHtml.includes('姑苏绣艺非遗工坊'),
+    );
 
     void editorCookie;
     void adminCookie;

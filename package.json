@@ -9,6 +9,15 @@
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server.js",
-    "smoke": "node --disable-warning=ExperimentalWarning scripts/smoke.js"
+    "smoke": "node --disable-warning=ExperimentalWarning scripts/smoke.js",
+    "import:national": "node --disable-warning=ExperimentalWarning scripts/import-national.js",
+    "import:publish": "node --disable-warning=ExperimentalWarning scripts/import-national.js --publish",
+    "media": "node --disable-warning=ExperimentalWarning scripts/media.js",
+    "ai:test": "node --disable-warning=ExperimentalWarning scripts/ai-test.js",
+    "ai:draft": "node --disable-warning=ExperimentalWarning scripts/ai-draft.js",
+    "ai:eval": "node --disable-warning=ExperimentalWarning scripts/ai-eval.js",
+    "image:todo": "node --disable-warning=ExperimentalWarning scripts/image-todo.js",
+    "image:backfill": "node --disable-warning=ExperimentalWarning scripts/backfill-image-size.js",
+    "org:archive": "node --disable-warning=ExperimentalWarning scripts/archive-sample-orgs.js"
   }
 }

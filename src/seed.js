@@ -4,6 +4,7 @@ import { PATHS } from './config.js';
 import { all, count, get, insert, run } from './db.js';
 import { ensureUser } from './auth.js';
 import { nowIso } from './util.js';
+import { PROVINCES } from './regions.js';
 
 const CATEGORIES = [
   { name: '民间文学', code: 'Ⅰ', summary: '口头传统与民间叙事，包括传说、故事、歌谣、谚语、史诗等。' },
@@ -212,6 +213,7 @@ function ensureDicts() {
     }
   }
   insertRegionTree(REGION_TREE);
+  ensureProvinces();
   for (let index = 0; index < BATCHES.length; index += 1) {
     if (!get("SELECT id FROM dict_item WHERE kind = 'batch' AND name = ?", [BATCHES[index]])) {
       insert('dict_item', { kind: 'batch', name: BATCHES[index], sort_order: index + 1 });
@@ -221,6 +223,30 @@ function ensureDicts() {
     if (!get("SELECT id FROM dict_item WHERE kind = 'org_type' AND name = ?", [ORG_TYPES[index]])) {
       insert('dict_item', { kind: 'org_type', name: ORG_TYPES[index], sort_order: index + 1 });
     }
+  }
+}
+
+/** 内置全国 34 个省级行政区（名录里的"省级地区"直接对应这一层） */
+export function ensureProvinces() {
+  for (const province of PROVINCES) {
+    const existing = get("SELECT id FROM region WHERE name = ? AND region_level = 'province'", [province.name]);
+    if (existing) continue;
+    const sameName = get('SELECT id FROM region WHERE name = ?', [province.name]);
+    if (sameName) {
+      run("UPDATE region SET region_level = 'province', code = ?, sort_order = ? WHERE id = ?", [
+        province.code,
+        province.order,
+        sameName.id,
+      ]);
+      continue;
+    }
+    insert('region', {
+      name: province.name,
+      parent_id: null,
+      region_level: 'province',
+      code: province.code,
+      sort_order: province.order,
+    });
   }
 }
 

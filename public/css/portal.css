@@ -1,4 +1,4 @@
-/* ============  门户骨架  ============ */
+/* ============ 门户骨架 ============ */
 .portal { background: var(--paper); }
 .site-main { min-height: 60vh; }
 
@@ -188,6 +188,7 @@
 .meta-item dt { font-size: 12px; color: var(--ink-3); margin-bottom: 3px; }
 .meta-item dd { margin: 0; font-size: 14.5px; }
 .meta-item.is-wide { grid-column: 1 / -1; }
+.content-source { margin: 12px 0 0; font-size: 12.5px; color: var(--ink-3); }
 
 .block { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 26px 28px; }
 .block .section-title { font-size: 20px; margin-bottom: 14px; }
@@ -214,8 +215,93 @@
 .gallery-item { margin: 0; border-radius: var(--radius); overflow: hidden; background: #f2eee7; }
 .gallery-item img { width: 100%; aspect-ratio: 16 / 11; object-fit: cover; }
 .gallery-item figcaption { padding: 9px 12px; font-size: 12.5px; color: var(--ink-2); background: #fff; border-top: 1px solid var(--line-2); }
+.gallery-grid.is-2col { grid-template-columns: repeat(2, 1fr); }
+.gallery-source { margin: 16px 0 0; padding-top: 12px; border-top: 1px dashed var(--line-2); font-size: 12.5px; color: var(--ink-3); line-height: 1.7; }
 
 /* ============ 页脚 ============ */
+
+/* ============ 游客 AI 小助手 ============ */
+.ai-section { padding-top: 44px; }
+.ai-card {
+  background: linear-gradient(180deg, #fffdfa, #faf6f0);
+  border: 1px solid #ecdfcd; border-radius: var(--radius-lg);
+  padding: 26px 28px 22px; box-shadow: var(--shadow-sm);
+}
+.ai-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.ai-badge {
+  font-size: 12.5px; color: var(--red-dark); background: var(--red-soft);
+  border: 1px solid #edd2d0; border-radius: 999px; padding: 3px 12px; white-space: nowrap;
+}
+.ai-root { display: flex; flex-direction: column; gap: 12px; }
+.ai-thread {
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: 340px; overflow-y: auto; padding: 4px 2px;
+}
+.ai-msg { font-size: 14px; line-height: 1.75; padding: 11px 14px; border-radius: 12px; max-width: 88%; }
+.ai-msg.is-bot { background: #fff; border: 1px solid var(--line-2); color: var(--ink); }
+.ai-msg.is-user { background: var(--red-soft); align-self: flex-end; color: var(--red-dark); }
+
+/* ============ 探访线索 ============ */
+.card-visit .card-title { font-size: 16.5px; }
+.visit-samples { display: flex; flex-direction: column; gap: 6px; }
+.visit-sample { font-size: 13.5px; color: var(--red); }
+.visit-sample:hover { text-decoration: underline; }
+.visit-hint { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-3); line-height: 1.7; }
+.visit-note {
+  background: var(--gold-soft); border: 1px solid #efdfb4; border-radius: var(--radius);
+  padding: 14px 18px; margin-bottom: 18px; font-size: 13.5px; color: #7d5800;
+}
+.visit-note b { display: block; margin-bottom: 4px; }
+.visit-note p { margin: 0; line-height: 1.75; }
+.visit-disclaimer { margin: 16px 0 0; font-size: 12.5px; color: var(--ink-3); line-height: 1.7; }
+.ai-typing { color: var(--ink-3); }
+.ai-error { color: #b3261e; }
+.ai-footnote-inline { margin-top: 8px; font-size: 12px; color: #8a6100; }
+.ai-form { display: flex; gap: 10px; align-items: center; }
+.ai-input {
+  flex: 1; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: #fff; outline: none; font-size: 14px;
+}
+.ai-input:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(168, 50, 45, .1); }
+.ai-samples { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink-3); }
+.ai-samples-label { color: var(--ink-3); }
+.ai-sample {
+  border: 1px dashed var(--line); background: transparent; border-radius: 999px;
+  padding: 4px 12px; font-size: 12.5px; color: var(--ink-2); cursor: pointer;
+}
+.ai-sample:hover { border-color: var(--red); color: var(--red); border-style: solid; }
+.ai-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ai-link {
+  display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12.5px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink-2);
+}
+.ai-link:hover { border-color: var(--red); color: var(--red); }
+.ai-link.is-primary { background: var(--red); border-color: var(--red); color: #fff; }
+.ai-source { margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--line); }
+.ai-source b { font-size: 12px; color: var(--ink-3); font-weight: 500; }
+.ai-source ul { list-style: none; margin: 7px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ai-source li { font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.ai-source-tag { background: #f3f0ea; border-radius: 4px; padding: 1px 7px; font-size: 11.5px; color: var(--ink-2); }
+.ai-source a { color: var(--red); }
+.ai-footnote { margin: 14px 0 0; font-size: 12px; color: var(--ink-3); line-height: 1.7; }
+
+/* 详情页右下角悬浮入口 */
+.ai-fab { position: fixed; right: 22px; bottom: 22px; z-index: 300; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.ai-fab-toggle {
+  border: none; border-radius: 999px; padding: 12px 20px; cursor: pointer;
+  background: var(--red); color: #fff; font-size: 14px; box-shadow: var(--shadow);
+}
+.ai-fab-toggle:hover { background: var(--red-dark); }
+.ai-fab-panel {
+  width: min(380px, calc(100vw - 32px)); background: #fff; border: 1px solid var(--line);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 16px;
+}
+.ai-fab-panel .ai-thread { max-height: 300px; }
+.ai-fab-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.ai-fab-head strong { font-size: 14.5px; }
+.ai-fab-close { border: none; background: none; font-size: 20px; line-height: 1; color: var(--ink-3); cursor: pointer; }
+.ai-fab-panel .ai-samples { display: none; }
+
 .site-footer { margin-top: 60px; background: #2b2724; color: rgba(255, 255, 255, .72); padding: 38px 0 28px; }
 .footer-inner { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding-bottom: 22px; border-bottom: 1px solid rgba(255, 255, 255, .12); }
 .footer-brand { font-family: var(--serif); font-size: 18px; color: #fff; margin: 0 0 6px; letter-spacing: 1px; }

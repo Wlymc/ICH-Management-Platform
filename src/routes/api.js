@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PATHS, UPLOAD } from '../config.js';
-import { all, count, get, run } from '../db.js';
+import { all, count, get, insert, run, update } from '../db.js';
 import {
   DICT_KINDS,
   dictCreate,
@@ -45,7 +45,20 @@ import {
   sessionCookie,
   updateUser,
 } from '../auth.js';
-import { decodeTextBuffer, h, nowIso, safeFileName, text, toInt, token, uid } from '../util.js';
+import {
+  KNOWLEDGE_KINDS,
+  getSession,
+  detectIntent,
+  listSessions,
+  publicConfig,
+  runCopilot,
+  runQuery,
+  saveConfig,
+  testConnection,
+} from '../ai.js';
+import { rebuildAndReport } from '../search.js';
+import { checkRateLimit, pruneRateLimit } from '../ratelimit.js';
+import { decodeTextBuffer, h, longText, nowIso, safeFileName, text, toInt, token, uid } from '../util.js';
 import { parseCsv, rowsToObjects, toCsv } from '../report/csv.js';
 import { buildXlsx } from '../report/xlsx.js';
 import { readXlsx } from '../report/xlsx-read.js';
@@ -367,6 +380,50 @@ export async function handleApi(req, res, url, user) {
     return true;
   }
 
+  /* ---------------- 游客 AI（无需登录，按 IP 限流） ---------------- */
+
+  if (pathname === '/api/public/ai/chat' || pathname === '/api/public/ai/query') {
+    if (method !== 'POST') {
+      fail(res, 405, '方法不允许');
+      return true;
+    }
+    const isQueryOnly = pathname.endsWith('/query');
+    const body = await readJson(req);
+    const message = text(body.message || body.query, 200);
+    if (!message) {
+      fail(res, 400, '请输入问题或指令（不超过 200 字）');
+      return true;
+    }
+    // 先用本地规则判定意图，再决定用哪一档限流（问答型消耗模型额度，限得更严）
+    const { isQueryIntent } = detectIntent(message);
+    const kind = isQueryIntent ? 'query' : 'ask';
+
+    if (Math.random() < 0.05) pruneRateLimit();
+    const limit = checkRateLimit(clientIp(req), kind);
+    if (!limit.allowed) {
+      const seconds = Math.ceil(limit.retryAfterMs / 1000);
+      fail(res, 429, `${limit.reason}，请 ${seconds >= 60 ? `${Math.ceil(seconds / 60)} 分钟` : `${seconds} 秒`}后再试`, {
+        retryAfterMs: limit.retryAfterMs,
+      });
+      return true;
+    }
+
+    if (isQueryOnly) {
+      ok(res, runQuery(message, { audience: 'public' }), { remaining: limit.remaining });
+      return true;
+    }
+    const result = await runCopilot(message, { audience: 'public', maxTokens: 400 });
+    ok(res, {
+      reply: result.reply,
+      kind: result.kind,
+      links: result.links || [],
+      sources: result.sources || [],
+      degraded: Boolean(result.degraded),
+      reason: result.degraded ? 'AI 能力暂时不可用，已切换为站内检索' : '',
+    }, { remaining: limit.remaining });
+    return true;
+  }
+
   if (!user) {
     fail(res, 401, '请先登录');
     return true;
@@ -644,6 +701,153 @@ export async function handleApi(req, res, url, user) {
       [historyResource.key, Number(historyMatch[2])],
     );
     ok(res, rows);
+    return true;
+  }
+
+  /* ---------------- AI 小助手 ---------------- */
+
+  if (pathname === '/api/ai/config') {
+    requireRole(user, 'admin', '仅管理员可配置 AI');
+    if (method === 'GET') {
+      ok(res, publicConfig());
+      return true;
+    }
+    if (method === 'PUT') {
+      const body = await readJson(req);
+      saveConfig(body);
+      writeAudit(user, 'ai', 'ai_config', null, 'AI 配置', '更新大模型配置', ip);
+      ok(res, publicConfig());
+      return true;
+    }
+    fail(res, 405, '方法不允许');
+    return true;
+  }
+
+  if (pathname === '/api/ai/config/test') {
+    requireRole(user, 'admin', '仅管理员可测试 AI 连通性');
+    if (method !== 'POST') {
+      fail(res, 405, '方法不允许');
+      return true;
+    }
+    const result = await testConnection();
+    writeAudit(user, 'ai', 'ai_config', null, 'AI 连通性测试', result.ok ? `成功（${result.model}）` : `失败：${result.error}`, ip);
+    ok(res, result);
+    return true;
+  }
+
+  if (pathname === '/api/ai/query') {
+    const body = await readJson(req);
+    const result = runQuery(body.message || body.query, { user });
+    ok(res, result);
+    return true;
+  }
+
+  if (pathname === '/api/ai/chat') {
+    if (method !== 'POST') {
+      fail(res, 405, '方法不允许');
+      return true;
+    }
+    const body = await readJson(req);
+    const result = await runCopilot(body.message || body.query, { user, sessionId: body.sessionId });
+    ok(res, result);
+    return true;
+  }
+
+  if (pathname === '/api/ai/sessions') {
+    ok(res, listSessions(user, toInt(query.limit, 20)));
+    return true;
+  }
+
+  const aiSessionMatch = pathname.match(/^\/api\/ai\/sessions\/([\w-]+)$/);
+  if (aiSessionMatch) {
+    const session = getSession(aiSessionMatch[1], user);
+    if (!session) {
+      fail(res, 404, '会话不存在');
+      return true;
+    }
+    ok(res, session);
+    return true;
+  }
+
+  if (pathname === '/api/search/reindex') {
+    requireRole(user, 'admin', '仅管理员可重建索引');
+    const result = rebuildAndReport();
+    writeAudit(user, 'ai', 'search_index', null, '全文索引', `重建 ${result.total} 条`, ip);
+    ok(res, result);
+    return true;
+  }
+
+  if (pathname === '/api/knowledge') {
+    if (method === 'GET') {
+      const rows = all(
+        `SELECT k.*, p.name AS project_name FROM knowledge_entry k
+         LEFT JOIN project p ON p.id = k.project_id
+         ORDER BY k.updated_at DESC LIMIT 200`,
+      );
+      ok(res, { kinds: KNOWLEDGE_KINDS, items: rows });
+      return true;
+    }
+    if (method === 'POST') {
+      const body = await readJson(req);
+      const title = text(body.title, 120);
+      if (!title) throw bad('标题不能为空');
+      const id = insert('knowledge_entry', {
+        kind: KNOWLEDGE_KINDS.includes(body.kind) ? body.kind : '术语',
+        title,
+        content: longText(body.content, 8000),
+        summary: longText(body.summary, 500) || longText(body.content, 200),
+        tags: text(body.tags, 200),
+        source: text(body.source, 200),
+        source_url: text(body.sourceUrl, 500),
+        project_id: toInt(body.projectId, null),
+        status: body.status === 'draft' ? 'draft' : 'published',
+        created_by: Number(user.id),
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      });
+      rebuildAndReport();
+      writeAudit(user, 'ai', 'knowledge', id, title, '新增知识条目', ip);
+      ok(res, { id });
+      return true;
+    }
+    fail(res, 405, '方法不允许');
+    return true;
+  }
+
+  const knowledgeMatch = pathname.match(/^\/api\/knowledge\/(\d+)$/);
+  if (knowledgeMatch) {
+    const id = Number(knowledgeMatch[1]);
+    const row = get('SELECT * FROM knowledge_entry WHERE id = ?', [id]);
+    if (!row) {
+      fail(res, 404, '知识条目不存在');
+      return true;
+    }
+    if (method === 'PUT') {
+      const body = await readJson(req);
+      update('knowledge_entry', id, {
+        kind: KNOWLEDGE_KINDS.includes(body.kind) ? body.kind : row.kind,
+        title: text(body.title, 120) || row.title,
+        content: longText(body.content, 8000),
+        summary: longText(body.summary, 500),
+        tags: text(body.tags, 200),
+        source: text(body.source, 200),
+        source_url: text(body.sourceUrl, 500),
+        project_id: toInt(body.projectId, null),
+        updated_at: nowIso(),
+      });
+      rebuildAndReport();
+      writeAudit(user, 'ai', 'knowledge', id, row.title, '修改知识条目', ip);
+      ok(res, { id });
+      return true;
+    }
+    if (method === 'DELETE') {
+      run('DELETE FROM knowledge_entry WHERE id = ?', [id]);
+      rebuildAndReport();
+      writeAudit(user, 'ai', 'knowledge', id, row.title, '删除知识条目', ip);
+      ok(res, { id });
+      return true;
+    }
+    fail(res, 405, '方法不允许');
     return true;
   }
 
