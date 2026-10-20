@@ -62,6 +62,8 @@ import { decodeTextBuffer, h, longText, nowIso, safeFileName, text, toInt, token
 import { parseCsv, rowsToObjects, toCsv } from '../report/csv.js';
 import { buildXlsx } from '../report/xlsx.js';
 import { readXlsx } from '../report/xlsx-read.js';
+import { buildStarMapData } from '../star-map.js';
+import { buildKnowledgeGraphData } from '../knowledge-graph.js';
 import {
   clientIp,
   fail,
@@ -421,6 +423,33 @@ export async function handleApi(req, res, url, user) {
       degraded: Boolean(result.degraded),
       reason: result.degraded ? 'AI 能力暂时不可用，已切换为站内检索' : '',
     }, { remaining: limit.remaining });
+    return true;
+  }
+
+  if (pathname === '/api/star-map') {
+    if (method !== 'GET') {
+      fail(res, 405, '方法不允许');
+      return true;
+    }
+    ok(res, buildStarMapData());
+    return true;
+  }
+
+  if (pathname === '/api/knowledge-graph') {
+    if (method !== 'GET') {
+      fail(res, 405, '方法不允许');
+      return true;
+    }
+    ok(res, buildKnowledgeGraphData());
+    return true;
+  }
+
+  if (pathname === '/api/explore') {
+    if (method !== 'GET') {
+      fail(res, 405, '方法不允许');
+      return true;
+    }
+    ok(res, { star: buildStarMapData(), graph: buildKnowledgeGraphData() });
     return true;
   }
 

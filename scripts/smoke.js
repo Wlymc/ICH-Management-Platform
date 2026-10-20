@@ -381,6 +381,8 @@ async function main() {
       '/projects?category_id=1&level_id=1&sort=name',
       `/projects/${projectId}`,
       '/inheritors',
+      '/explore',
+      '/explore?mode=graph',
       '/organizations',
       '/admin/work',
       '/admin/dashboard',
@@ -415,6 +417,37 @@ async function main() {
     check('新建项目表单渲染完整', formHtml.includes('id="resource-form"') && formHtml.includes('image-field'));
     const portalDetail = await (await request(`/projects/${projectId}`)).text();
     check('门户详情页渲染新发布项目', portalDetail.includes(`冒烟测试项目-${stamp}`) && portalDetail.includes('meta-grid'));
+
+    const exploreHtml = await (await request('/explore')).text();
+    check(
+      '非遗探索页面同时渲染地理星图与关系谱系',
+      exploreHtml.includes('data-star-svg') && exploreHtml.includes('data-person-sphere') && exploreHtml.includes('data-explore-lens="region"') && exploreHtml.includes('data-explore-lens="project"') && exploreHtml.includes('data-explore-lens="person"') && exploreHtml.includes('data-region-mode="time"') && exploreHtml.includes('data-story-trail') && exploreHtml.includes('data-drawer-rail') && exploreHtml.includes('data-drawer-tab="detail"') && exploreHtml.includes('data-drawer-tab="legend"') && exploreHtml.includes('data-explore-route="chain"') && exploreHtml.includes('explore.css') && exploreHtml.includes('explore.js'),
+    );
+    const exploreMap = await json('/api/explore');
+    const starData = exploreMap.payload?.data?.star;
+    const graphData = exploreMap.payload?.data?.graph;
+    check(
+      '非遗探索接口返回星图与谱系数据',
+      exploreMap.status === 200 && Array.isArray(starData?.nodes) && starData.nodes.length > 0 && Array.isArray(graphData?.nodes) && graphData.nodes.length > 0 && Array.isArray(graphData?.edges) && graphData.edges.length > 0,
+      exploreMap.status === 200 ? '' : `HTTP ${exploreMap.status}`,
+    );
+    check(
+      '探索数据包含门类、地区、传承人与关系',
+      starData?.categories?.length === 10 && starData?.provinces?.length > 0 && graphData?.meta?.projectTotal > 0 && graphData?.meta?.inheritorTotal > 0 && graphData?.meta?.edgeTotal > 0,
+    );
+    check(
+      '项目星点包含批次与档案完整度',
+      starData?.nodes?.every((node) => Object.hasOwn(node, 'batch') && Number.isFinite(Number(node.completeness))),
+    );
+    const exploreScript = await (await request('/assets/js/explore.js')).text();
+    check(
+      '探索脚本包含正十边形、时间星河、保护星环与单抽屉实现',
+      exploreScript.includes('decagonGuideMarkup') && exploreScript.includes('buildTimeLayout') && exploreScript.includes('protection-ring') && exploreScript.includes('startStory') && exploreScript.includes('updateDrawerUi') && exploreScript.includes('closeDrawer'),
+    );
+    check('项目详情页提供非遗探索定位', portalDetail.includes('/explore?lens=region&project=') && portalDetail.includes('/explore?lens=project&project='));
+    const legacyGraph = await request('/graph?project=1');
+    const legacyLocation = String(legacyGraph.headers.get('location') || '');
+    check('旧知识图谱地址兼容跳转到非遗探索', legacyGraph.status === 302 && legacyLocation.startsWith('/explore?') && legacyLocation.includes('lens=project') && legacyLocation.includes('project=1'), legacyLocation);
 
     const cssText = await (await request('/assets/css/app.css')).text();
     check(

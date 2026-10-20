@@ -1,6 +1,6 @@
 import zlib from 'node:zlib';
 
-/** 最小 .xlsx 读取器：从 zip 中取出 sheet1.xml 与 sharedStrings.xml */
+/** 最小 .xlsx 读取器：从 zip 中取出工作表 XML 与 sharedStrings.xml */
 function readZipEntries(buffer) {
   const entries = new Map();
   let offset = 0;
@@ -44,14 +44,22 @@ function decodeXml(value) {
     .replace(/&amp;/g, '&');
 }
 
+function parseAttributes(source) {
+  const out = {};
+  const regex = /([A-Za-z_][\w:.-]*)="([^"]*)"/g;
+  let match;
+  while ((match = regex.exec(source))) out[match[1]] = decodeXml(match[2]);
+  return out;
+}
+
 function parseSharedStrings(xml) {
   if (!xml) return [];
   const out = [];
-  const siRegex = /<si\b[^>]*>([\s\S]*?)<\/si>/g;
+  const siRegex = /<(?:[\w.-]+:)?si\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?si>/g;
   let match;
   while ((match = siRegex.exec(xml))) {
     const inner = match[1];
-    const parts = [...inner.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((m) => decodeXml(m[1]));
+    const parts = [...inner.matchAll(/<(?:[\w.-]+:)?t\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?t>/g)].map((m) => decodeXml(m[1]));
     out.push(parts.join(''));
   }
   return out;
@@ -68,11 +76,11 @@ function columnIndex(ref) {
 
 function parseSheet(xml, shared) {
   const rows = [];
-  const rowRegex = /<row\b[^>]*>([\s\S]*?)<\/row>/g;
+  const rowRegex = /<(?:[\w.-]+:)?row\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?row>/g;
   let rowMatch;
   while ((rowMatch = rowRegex.exec(xml))) {
     const cells = [];
-    const cellRegex = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    const cellRegex = /<(?:[\w.-]+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:[\w.-]+:)?c>)/g;
     let cellMatch;
     while ((cellMatch = cellRegex.exec(rowMatch[1]))) {
       const attrs = cellMatch[1] || '';
@@ -83,9 +91,9 @@ function parseSheet(xml, shared) {
       const type = typeMatch ? typeMatch[1] : 'n';
       let value = '';
       if (type === 'inlineStr') {
-        value = [...inner.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((m) => decodeXml(m[1])).join('');
+        value = [...inner.matchAll(/<(?:[\w.-]+:)?t\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?t>/g)].map((m) => decodeXml(m[1])).join('');
       } else {
-        const valueMatch = inner.match(/<v>([\s\S]*?)<\/v>/);
+        const valueMatch = inner.match(/<(?:[\w.-]+:)?v>([\s\S]*?)<\/(?:[\w.-]+:)?v>/);
         const raw = valueMatch ? valueMatch[1] : '';
         value = type === 's' ? shared[Number(raw)] ?? '' : decodeXml(raw);
       }
@@ -97,15 +105,53 @@ function parseSheet(xml, shared) {
   return rows;
 }
 
-export function readXlsx(buffer) {
+function normalizeEntryName(target) {
+  let name = String(target || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  if (name.startsWith('xl/')) return name;
+  if (name.startsWith('../')) name = name.replace(/^\.\.\//, '');
+  if (name.startsWith('worksheets/') || name.startsWith('sharedStrings') || name.startsWith('workbook')) return `xl/${name}`;
+  return name;
+}
+
+function sheetEntries(entries) {
+  const workbook = entries.get('xl/workbook.xml')?.toString('utf8') || '';
+  const relsXml = entries.get('xl/_rels/workbook.xml.rels')?.toString('utf8') || '';
+  const rels = new Map();
+  for (const match of relsXml.matchAll(/<(?:[\w.-]+:)?Relationship\b([^>]*?)\/?>/g)) {
+    const attrs = parseAttributes(match[1]);
+    if (attrs.Id && attrs.Target) rels.set(attrs.Id, normalizeEntryName(attrs.Target));
+  }
+
+  const sheets = [];
+  let index = 0;
+  for (const match of workbook.matchAll(/<(?:[\w.-]+:)?sheet\b([^>]*?)\/?>/g)) {
+    const attrs = parseAttributes(match[1]);
+    index += 1;
+    const key = rels.get(attrs['r:id']) || `xl/worksheets/sheet${index}.xml`;
+    if (entries.has(key)) sheets.push({ name: attrs.name || `Sheet${index}`, key });
+  }
+  if (sheets.length) return sheets;
+
+  return [...entries.keys()]
+    .filter((name) => /^xl\/worksheets\/.*\.xml$/.test(name) && !name.includes('_rels'))
+    .sort()
+    .map((key, i) => ({ name: `Sheet${i + 1}`, key }));
+}
+
+/** 读取工作簿内全部工作表：返回 [{ name, rows }] */
+export function readXlsxSheets(buffer) {
   const entries = readZipEntries(buffer);
   const shared = parseSharedStrings(entries.get('xl/sharedStrings.xml')?.toString('utf8'));
-  let sheetKey = 'xl/worksheets/sheet1.xml';
-  if (!entries.has(sheetKey)) {
-    const found = [...entries.keys()].find((name) => /^xl\/worksheets\/.*\.xml$/.test(name) && !name.includes('_rels'));
-    if (found) sheetKey = found;
-  }
-  const sheetXml = entries.get(sheetKey)?.toString('utf8');
-  if (!sheetXml) throw new Error('无法解析该 Excel 文件，请另存为 CSV 后重试');
-  return parseSheet(sheetXml, shared);
+  const sheets = sheetEntries(entries).map(({ name, key }) => {
+    const xml = entries.get(key)?.toString('utf8');
+    if (!xml) throw new Error(`无法解析工作表：${name}`);
+    return { name, rows: parseSheet(xml, shared) };
+  });
+  if (!sheets.length) throw new Error('无法解析该 Excel 文件，请另存为 CSV 后重试');
+  return sheets;
+}
+
+/** 兼容旧调用：读取第一张工作表 */
+export function readXlsx(buffer) {
+  return readXlsxSheets(buffer)[0]?.rows || [];
 }

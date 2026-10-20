@@ -27,14 +27,29 @@ function projectCard(project) {
   </a>`;
 }
 
+function personMark(name) {
+  const mark = Array.from(String(name || '传')).slice(0, 2).join('');
+  return `<span class="person-seal" aria-hidden="true">${h(mark)}</span>`;
+}
+
 function inheritorCard(person) {
+  const region = person.region_label || person.region_name || '地区待补';
+  const story = person.story_title || '传承实践与人物档案';
+  const skill = truncate(person.skill || person.experience || '记录其从艺经历、技艺特点与代表项目。', 64);
   return `<a class="card card-person" href="/inheritors/${person.id}">
-    ${coverOr(person.photo_path, person.name, 'card-portrait')}
-    <div class="card-body">
-      <div class="card-tags">${levelChip(person.level_name)}<span class="chip chip-plain">${h(person.gender || '')}${person.ethnic ? ` · ${h(person.ethnic)}` : ''}</span></div>
-      <h3 class="card-title">${h(person.name)}</h3>
-      <p class="card-story">${h(truncate(person.story_title || person.skill || '长期从事非遗技艺传承实践', 54))}</p>
-      <div class="card-foot"><span class="card-loc">${h(person.region_label || person.region_name || '')}</span><span class="card-go">了解传承故事 →</span></div>
+    ${personMark(person.name)}
+    <div class="card-body person-card-body">
+      <div class="person-card-head">
+        <span class="person-card-kicker">传承人人物志</span>
+        <div class="card-tags">${levelChip(person.level_name)}${person.ethnic ? `<span class="chip chip-plain">${h(person.ethnic)}</span>` : ''}</div>
+      </div>
+      <h3 class="card-title person-card-name">${h(person.name)}</h3>
+      <p class="person-card-story">${h(story)}</p>
+      <p class="person-card-skill">${h(skill)}</p>
+      <div class="card-foot person-card-foot">
+        <span>${h(region)}${person.batch ? ` · ${h(person.batch)}` : ''}</span>
+        <span class="card-go">阅读人物志 →</span>
+      </div>
     </div>
   </a>`;
 }
@@ -153,6 +168,28 @@ export function homeView(data) {
     </div>
   </section>
 
+  ${
+    PORTAL.showExplore
+      ? `<section class="wrap section star-teaser-section">
+    <a class="star-teaser" href="/explore">
+      <div class="star-teaser-copy">
+        <p class="star-teaser-eyebrow">夜观 · 非遗探索</p>
+        <h2>从地理星区到关系谱系，换一种方式看非遗</h2>
+        <p>先用省级星区看分布，再进入关系谱系读项目、传承人与门类之间的联系。两种探索方式共用一个深色工作台。</p>
+        <span class="star-teaser-cta">进入探索 →</span>
+      </div>
+      <div class="star-teaser-visual" aria-hidden="true">
+        <span class="star-teaser-orbit orbit-a"></span>
+        <span class="star-teaser-orbit orbit-b"></span>
+        <i class="star-dot dot-a"></i><i class="star-dot dot-b"></i><i class="star-dot dot-c"></i>
+        <i class="star-dot dot-d"></i><i class="star-dot dot-e"></i><i class="star-dot dot-f"></i>
+        <b>星</b>
+      </div>
+    </a>
+  </section>`
+      : ''
+  }
+
   <section class="wrap section">
     <header class="section-head">
       <div><h2 class="section-title">十大门类，从这里开始逛</h2><p class="section-sub">按项目类别进入，看看这片土地上流传下来的手艺、曲调与风俗。</p></div>
@@ -241,6 +278,8 @@ function floatingAi(context) {
 }
 
 function filterBar({ resource, query, dicts, levels, categories, regions, extra = '' }) {
+  const isProject = resource.key === 'project';
+  const isPerson = resource.key === 'inheritor';
   const categoryOptions = categories
     .map((c) => `<option value="${c.id}"${String(query.category_id) === String(c.id) ? ' selected' : ''}>${h(c.name)}</option>`)
     .join('');
@@ -250,18 +289,27 @@ function filterBar({ resource, query, dicts, levels, categories, regions, extra 
   const regionOptions = regions
     .map((r) => `<option value="${r.id}"${String(query.region_id) === String(r.id) ? ' selected' : ''}>${h(r.label)}</option>`)
     .join('');
-  const sortOptions = [
-    { value: 'updated_at', label: '最近更新' },
-    { value: 'published_year', label: '公布年份' },
-    { value: 'certified_year', label: '认定年份' },
-    { value: 'name', label: '名称排序' },
-  ]
+  const sortOptions = (isPerson
+    ? [
+        { value: 'updated_at', label: '最近更新' },
+        { value: 'certified_year', label: '认定年份' },
+        { value: 'name', label: '姓名排序' },
+      ]
+    : [
+        { value: 'updated_at', label: '最近更新' },
+        { value: 'published_year', label: '公布年份' },
+        { value: 'certified_year', label: '认定年份' },
+        { value: 'name', label: '名称排序' },
+      ])
     .map((o) => `<option value="${o.value}"${query.sort === o.value ? ' selected' : ''}>${h(o.label)}</option>`)
     .join('');
+  const categoryField = isProject
+    ? `<select name="category_id"><option value="">全部类别</option>${categoryOptions}</select>`
+    : '';
 
-  return `<form class="filter-bar" method="get" action="${resource.publicPath}">
-    <input class="filter-search" type="search" name="q" value="${h(query.q || '')}" placeholder="搜索名称、地区、关键词">
-    <select name="category_id"><option value="">全部类别</option>${categoryOptions}</select>
+  return `<form class="filter-bar${isPerson ? ' filter-bar-person' : ''}" method="get" action="${resource.publicPath}">
+    <input class="filter-search" type="search" name="q" value="${h(query.q || '')}" placeholder="${isPerson ? '搜索姓名、技艺、地区' : '搜索名称、地区、关键词'}">
+    ${categoryField}
     <select name="level_id"><option value="">全部级别</option>${levelOptions}</select>
     <select name="region_id"><option value="">全部地区</option>${regionOptions}</select>
     <select name="sort">${sortOptions}</select>
@@ -278,28 +326,42 @@ export function listView({ resource, pageInfo, query, dicts, categories, levels,
     .map((item) => (isPerson ? inheritorCard(item) : isOrg ? organizationCard(item) : projectCard(item)))
     .join('');
 
-  const body = `
-  <section class="page-head">
+  const pageHead = isPerson
+    ? `<section class="page-head page-head-inheritors">
+    <div class="wrap">
+      <nav class="breadcrumb"><a href="/">首页</a><i>/</i><span>传承人</span></nav>
+      <div class="inheritor-title-row">
+        <div>
+          <p class="page-eyebrow">人物志 · 口述与技艺</p>
+          <h1 class="page-title">传承人人物志</h1>
+          <p class="page-sub">以人为轴，读一门手艺的来处、坚守与新生。这里记录代表性传承人的从艺经历、技艺特点与代表项目。</p>
+        </div>
+        <div class="inheritor-tally"><strong>${pageInfo.total}</strong><span>位已发布传承人</span></div>
+      </div>
+    </div>
+  </section>`
+    : `<section class="page-head">
     <div class="wrap">
       <nav class="breadcrumb"><a href="/">首页</a><i>/</i><span>${h(resource.label)}</span></nav>
       <h1 class="page-title">${h(isOrg ? '探访体验点' : resource.label)}</h1>
       <p class="page-sub">${h(
         isOrg
           ? '对公众开放的传习所、展示馆与传承基地，可到场参观、参与体验活动。'
-          : isPerson
-            ? '各级代表性传承人及其技艺与传承故事。'
-            : '已发布的非物质文化遗产代表性项目，可按类别、级别与地区筛选。',
+          : '已发布的非物质文化遗产代表性项目，可按类别、级别与地区筛选。',
       )}</p>
     </div>
-  </section>
+  </section>`;
+
+  const body = `
+  ${pageHead}
   <section class="wrap section">
     ${filterBar({ resource, query, dicts, levels, categories, regions })}
     <div class="list-summary">共找到 <strong>${pageInfo.total}</strong> 条结果${query.q ? `，关键词「${h(query.q)}」` : ''}</div>
-    <div class="card-grid">${cards || emptyState('没有符合条件的记录', '试试减少筛选条件或更换关键词。')}</div>
+    <div class="card-grid${isPerson ? ' person-card-grid' : ''}">${cards || emptyState('没有符合条件的记录', '试试减少筛选条件或更换关键词。')}</div>
     ${paginationBar(resource.publicPath, query, pageInfo)}
   </section>`;
   return portalLayout({
-    title: resource.label,
+    title: isPerson ? '传承人人物志' : resource.label,
     description: `${resource.label}列表 - ${BRAND.name}`,
     active: resource.key === 'inheritor' ? 'inheritors' : isOrg ? 'organizations' : 'projects',
     body,
@@ -382,6 +444,7 @@ export function projectDetailView(data) {
       </div>
       ${project.keywords ? `<div class="side-card"><h3>关键词</h3><div class="chip-row">${String(project.keywords).split(/[、,，;；]+/).filter(Boolean).map((k) => `<a class="chip chip-link" href="/projects?q=${encodeURIComponent(k)}">${h(k)}</a>`).join('')}</div></div>` : ''}
       ${related && related.length ? `<div class="side-card"><h3>相关传承人</h3><ul class="side-list">${related.map((r) => `<li><a href="/inheritors/${r.id}">${h(r.name)}</a><span>${h(r.level_name || '')}</span></li>`).join('')}</ul></div>` : ''}
+      ${PORTAL.showExplore ? `<div class="side-card star-locate-card"><h3>从关系里看</h3><p>把项目放回地理星区与关系谱系，看看它与门类、地区、传承人之间的关系。</p><div class="side-action-row"><a class="btn btn-primary" href="/explore?lens=region&project=${project.id}">星图定位</a><a class="btn btn-ghost" href="/explore?lens=project&project=${project.id}">查看谱系</a></div></div>` : ''}
     </aside>
   </section>
   ${floatingAi(project.name)}`;
@@ -394,13 +457,26 @@ export function projectDetailView(data) {
   });
 }
 
+function personNarrative(index, title, content) {
+  if (!String(content || '').trim()) return '';
+  return `<section class="block person-narrative">
+    <div class="person-narrative-index" aria-hidden="true">${h(index)}</div>
+    <div class="person-narrative-body">
+      <h2 class="section-title">${h(title)}</h2>
+      <p class="prose">${h(content)}</p>
+    </div>
+  </section>`;
+}
+
 export function inheritorDetailView(data) {
   const { person, projects, attachments, sameCategory } = data;
   const meta = [
-    ['编号', person.code],
+    ['档案编号', person.code],
+    ['官方编号', person.source_code],
     ['性别', person.gender],
     ['民族', person.ethnic],
     ['出生年月', person.birth_month],
+    ['从艺起始', person.career_start_year ? `${person.career_start_year} 年` : ''],
     ['认定级别', person.level_name],
     ['认定批次', person.batch],
     ['所在地', person.region_label],
@@ -410,38 +486,65 @@ export function inheritorDetailView(data) {
     .map(([label, value]) => `<div class="meta-item"><dt>${h(label)}</dt><dd>${h(value)}</dd></div>`)
     .join('');
 
+  const mark = Array.from(String(person.name || '传')).slice(0, 2).join('');
+  const watermark = Array.from(String(person.name || '传'))[0] || '传';
+  const story = person.story_title || truncate(person.skill || person.experience || '人物档案与传承实践记录', 110);
+  const facts = [
+    ['认定级别', person.level_name],
+    ['所在地', person.region_label],
+    ['民族', person.ethnic],
+    ['从艺起始', person.career_start_year ? `${person.career_start_year} 年` : ''],
+  ].filter(([, value]) => value);
+  const nonImageAttachments = attachments.filter((item) => item.kind !== 'image');
+  const sideProjects = projects
+    .map((project) => `<li><a href="/projects/${project.id}">${h(project.name)}</a><em>${h(project.category_name || '')}</em></li>`)
+    .join('');
+
   const body = `
-  <section class="detail-hero detail-hero-person">
+  <section class="detail-hero inheritor-hero">
+    <span class="inheritor-hero-watermark" aria-hidden="true">${h(watermark)}</span>
     <div class="wrap detail-hero-inner">
       <nav class="breadcrumb"><a href="/">首页</a><i>/</i><a href="/inheritors">传承人</a><i>/</i><span>${h(person.name)}</span></nav>
-      <div class="person-head">
-        ${person.photo_path ? `<div class="person-photo"><img src="${h(uploadUrl(person.photo_path))}" alt="${h(person.name)}" loading="lazy"></div>` : ''}
-        <div>
-          <div class="detail-tags">${levelChip(person.level_name)}${person.ethnic ? `<span class="chip chip-solid">${h(person.ethnic)}</span>` : ''}</div>
+      <div class="inheritor-hero-grid">
+        <div class="inheritor-seal" aria-hidden="true"><span>${h(mark)}</span></div>
+        <div class="inheritor-hero-copy">
+          <div class="detail-tags">${levelChip(person.level_name)}${person.ethnic ? `<span class="chip chip-solid">${h(person.ethnic)}</span>` : ''}${person.batch ? `<span class="chip chip-solid">${h(person.batch)}</span>` : ''}</div>
+          <p class="inheritor-hero-kicker">代表性传承人 · 人物志</p>
           <h1 class="detail-title">${h(person.name)}</h1>
-          ${person.story_title ? `<p class="detail-lead">${h(person.story_title)}</p>` : ''}
+          <p class="detail-lead">${h(story)}</p>
+          ${facts.length ? `<div class="inheritor-hero-facts">${facts.map(([label, value]) => `<span><b>${h(value)}</b><em>${h(label)}</em></span>`).join('')}</div>` : ''}
         </div>
       </div>
     </div>
   </section>
   <section class="wrap detail-body">
     <div class="detail-main">
-      <dl class="meta-grid">${meta}</dl>
-      ${person.experience ? `<section class="block"><h2 class="section-title">从艺经历</h2><p class="prose">${h(person.experience)}</p></section>` : ''}
-      ${person.skill ? `<section class="block"><h2 class="section-title">技艺特点</h2><p class="prose">${h(person.skill)}</p></section>` : ''}
-      ${person.honors ? `<section class="block"><h2 class="section-title">代表作品与荣誉</h2><p class="prose">${h(person.honors)}</p></section>` : ''}
-      ${person.video_url ? `<section class="block"><h2 class="section-title">影像资料</h2>${videoEmbed(person.video_url)}</section>` : ''}
-      ${gallery(attachments, { title: '影像档案' })}
-      ${projects.length ? `<section class="block"><h2 class="section-title">代表性项目</h2><div class="card-grid">${projects.map(projectCard).join('')}</div></section>` : ''}
-      ${sameCategory.length ? `<section class="block"><h2 class="section-title">同类传承人</h2><div class="card-grid">${sameCategory.map(inheritorCard).join('')}</div></section>` : ''}
+      <dl class="meta-grid meta-grid-person">${meta}</dl>
+      ${personNarrative('01', '从艺经历', person.experience)}
+      ${personNarrative('02', '技艺特点', person.skill)}
+      ${personNarrative('03', '代表作品与荣誉', person.honors)}
+      ${person.video_url ? `<section class="block person-media-block"><div class="person-narrative-index" aria-hidden="true">影</div><div class="person-narrative-body"><h2 class="section-title">影像资料</h2>${videoEmbed(person.video_url)}</div></section>` : ''}
+      ${gallery(nonImageAttachments, { title: '影音与文献' })}
+      ${projects.length ? `<section class="block person-related-block"><h2 class="section-title">代表性项目</h2><div class="card-grid">${projects.map(projectCard).join('')}</div></section>` : ''}
+      ${sameCategory.length ? `<section class="block person-related-block"><h2 class="section-title">同类传承人</h2><div class="card-grid person-card-grid">${sameCategory.map(inheritorCard).join('')}</div></section>` : ''}
     </div>
     <aside class="detail-side">
+      <div class="side-card person-profile-card">
+        <span class="side-card-eyebrow">PERSONAL ARCHIVE</span>
+        <h3>${h(person.name)}</h3>
+        <dl class="side-facts">${facts.map(([label, value]) => `<div><dt>${h(label)}</dt><dd>${h(value)}</dd></div>`).join('')}</dl>
+        ${person.code ? `<p class="side-code">档案编号 · ${h(person.code)}</p>` : ''}
+      </div>
+      ${projects.length ? `<div class="side-card"><h3>传承项目</h3><ul class="side-list">${sideProjects}</ul></div>` : ''}
       <div class="side-card"><h3>联系与探访</h3><p>希望向传承人学习或采访记录，可联系当地保护单位协助对接，请尊重传承人的正常生活与工作安排。</p></div>
+      <div class="side-card side-note-card"><h3>资料说明</h3><p>本页以文字、口述与项目档案呈现传承人信息；内容用于非遗知识普及与教学演示。</p></div>
+      ${PORTAL.showExplore ? `<div class="side-card star-locate-card"><h3>关系谱系</h3><p>从传承人出发，查看其关联项目、门类与地区在关系谱系中的位置。</p><a class="btn btn-ghost btn-block" href="/explore?lens=person&inheritor=${person.id}">查看关系谱系 →</a></div>` : ''}
     </aside>
   </section>
   ${floatingAi(`${person.name}的相关内容`)}`;
+
   return portalLayout({
-    title: `${person.name} · 传承人`,
+    title: `${person.name} · 传承人人物志`,
     description: truncate(person.story_title || person.skill || `${person.name} - ${BRAND.name}`, 120),
     active: 'inheritors',
     body,

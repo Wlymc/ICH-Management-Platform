@@ -60,10 +60,12 @@ export const ADMIN_PAGE_SIZE = 15;
  * 门户开关。
  * showVisitSection：保护单位数据补齐后改为 true，门户即出现「探访体验点」栏目。
  * showContentSource：详情页标注内容来源（官方名录 / AI 起草后人工定稿）。
+ * showExplore：显示「非遗探索」入口，内含地理星图与关系谱系两种模式。
  */
 export const PORTAL = {
   showVisitSection: true,
   showContentSource: true,
+  showExplore: true,
 };
 
 /**

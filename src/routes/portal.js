@@ -4,7 +4,7 @@ import { dicts } from '../dict.js';
 import { listAttachments } from '../service.js';
 import { getResource } from '../resources.js';
 import { clamp, paginate, toInt } from '../util.js';
-import { sendNotFound, sendHtml, parseQuery } from '../http.js';
+import { sendNotFound, sendHtml, parseQuery, redirect } from '../http.js';
 import {
   homeView,
   listView,
@@ -13,6 +13,9 @@ import {
   organizationDetailView,
   visitGuideView,
 } from '../views/portal.js';
+import { exploreView } from '../views/explore.js';
+import { buildStarMapData } from '../star-map.js';
+import { buildKnowledgeGraphData } from '../knowledge-graph.js';
 
 const PROJECT_SELECT = `SELECT t.*, c.name AS category_name, c.code AS category_code, c.sort_order AS category_order,
     l.name AS level_name, l.sort_order AS level_order, r.name AS region_name, o.name AS organization_name
@@ -237,6 +240,19 @@ export function handlePortal(req, res, url) {
     sendHtml(res, homeView(homeData()));
     return true;
   }
+
+  if (pathname === '/explore') {
+    sendHtml(res, exploreView({ data: { star: buildStarMapData(), graph: buildKnowledgeGraphData() } }));
+    return true;
+  }
+
+  if (pathname === '/xingtu' || pathname === '/graph') {
+    const params = new URLSearchParams(url.search);
+    params.set('lens', pathname === '/graph' ? 'project' : 'region');
+    redirect(res, `/explore?${params.toString()}`);
+    return true;
+  }
+
 
   if (pathname === '/organizations') {
     // 探访线索：按省份聚合官方名录事实；只有核实过的基地才展示联系方式

@@ -112,7 +112,6 @@ export const RESOURCES = {
       f({ name: 'video_url', label: '影像视频外链', type: 'url', group: 'media', import: true, span: 'full' }),
       f({ name: 'source_url', label: '资料来源链接', type: 'url', group: 'media', import: true, span: 'full', aliases: ['来源链接', '传承人详情页'] }),
       f({ name: 'data_note', label: '数据核验说明', type: 'textarea', group: 'content', import: true, rows: 3, span: 'full', aliases: ['匹配说明', '核验说明'], help: '记录该条传承人信息的来源与核验情况，答辩时可追溯' }),
-      f({ name: 'photo_path', label: '肖像照', type: 'image', group: 'media', span: 'full', list: true, width: 80 }),
     ],
     related: [
       { key: 'projects', label: '代表性项目', resource: 'project', kind: 'many' },

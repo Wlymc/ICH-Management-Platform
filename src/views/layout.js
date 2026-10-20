@@ -19,6 +19,7 @@ const PORTAL_NAV_BASE = [
 
 function portalNav() {
   const items = [...PORTAL_NAV_BASE];
+  if (PORTAL.showExplore) items.push({ href: '/explore', label: '非遗探索', key: 'explore' });
   // 保护单位数据补齐前不展示「探访体验点」，避免栏目空着
   if (PORTAL.showVisitSection) {
     items.push({ href: '/organizations', label: '探访线索', key: 'organizations' });
@@ -26,7 +27,7 @@ function portalNav() {
   return items;
 }
 
-export function portalLayout({ title, description = '', active = '', body, keyword = '', bodyClass = '', scripts = [] }) {
+export function portalLayout({ title, description = '', active = '', body, keyword = '', bodyClass = '', styles = [], scripts = [] }) {
   const fullTitle = title ? `${title} · ${BRAND.name}` : BRAND.name;
   const nav = portalNav().map(
     (item) =>
@@ -45,6 +46,7 @@ export function portalLayout({ title, description = '', active = '', body, keywo
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#a8322d"/><text x="16" y="22" font-size="16" text-anchor="middle" fill="#fff" font-family="sans-serif">非</text></svg>')}">
 <link rel="stylesheet" href="${asset('css/app.css')}">
 <link rel="stylesheet" href="${asset('css/portal.css')}">
+${styles.map((name) => `<link rel="stylesheet" href="${asset(String(name).replace(/^\/assets\//, ''))}">`).join('')}
 </head>
 <body class="portal ${bodyClass}">
 <header class="site-header">
@@ -74,6 +76,7 @@ ${scripts.map((name) => `<script src="${asset(String(name).replace(/^\/assets\//
     <div class="footer-links">
       <a href="/projects">非遗项目</a>
       <a href="/inheritors">传承人</a>
+      ${PORTAL.showExplore ? '<a href="/explore">非遗探索</a>' : ''}
       ${PORTAL.showVisitSection ? '<a href="/organizations">探访线索</a>' : ''}
       <a href="/admin">管理端登录</a>
     </div>
