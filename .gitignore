@@ -9,6 +9,11 @@ node_modules/
 *.log
 *.tmp
 *.bak
+.env
+.env.local
+web/.env.local
+__pycache__/
+*.pyc
 
 # 系统文件
 .DS_Store

@@ -4,6 +4,7 @@
  * 会自动以测试端口启动一个服务实例，跑完全流程后清理测试数据并关闭。
  */
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildXlsx } from '../src/report/xlsx.js';
@@ -13,6 +14,17 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const PORT = Number(process.env.SMOKE_PORT || 3111);
 const BASE = `http://127.0.0.1:${PORT}`;
+let appBundleTextCache = '';
+
+function appBundleText() {
+  if (appBundleTextCache) return appBundleTextCache;
+  const assets = path.join(root, 'public', 'app', 'assets');
+  appBundleTextCache = fs.readdirSync(assets)
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => fs.readFileSync(path.join(assets, name), 'utf8'))
+    .join('\n');
+  return appBundleTextCache;
+}
 
 let passed = 0;
 const failures = [];
@@ -230,8 +242,8 @@ async function main() {
     const projectId = created.payload?.data?.id;
     if (projectId) createdIds.push(projectId);
 
-    const publicBefore = await request(`/projects/${projectId}`);
-    check('草稿状态不出现在门户', publicBefore.status === 404);
+    const publicBefore = await json(`/api/public/projects/${projectId}`);
+    check('草稿状态不出现在门户 API', publicBefore.status === 404);
 
     const submit = await json(`/api/projects/${projectId}/submit`, { method: 'POST' });
     check('录入员提交审核成功', submit.status === 200);
@@ -415,15 +427,25 @@ async function main() {
     check('管理端项目列表渲染数据表格', listHtml.includes('data-resource="project"'));
     const formHtml = await (await request('/admin/projects/new')).text();
     check('新建项目表单渲染完整', formHtml.includes('id="resource-form"') && formHtml.includes('image-field'));
-    const portalDetail = await (await request(`/projects/${projectId}`)).text();
-    check('门户详情页渲染新发布项目', portalDetail.includes(`冒烟测试项目-${stamp}`) && portalDetail.includes('meta-grid'));
+    const portalDetail = await request(`/projects/${projectId}`);
+    const portalDetailHtml = await portalDetail.text();
+    check(
+      'React 门户详情直链返回应用入口',
+      portalDetail.status === 200 && portalDetailHtml.includes('id="root"') && /\/app\/assets\/index-[^"]+\.js/.test(portalDetailHtml),
+    );
+    const portalProjectApi = await json(`/api/public/projects/${projectId}`);
+    check(
+      '门户项目 API 返回新发布项目',
+      portalProjectApi.status === 200 && portalProjectApi.payload?.data?.project?.name === `冒烟测试项目-${stamp}`,
+      portalProjectApi.payload?.error || '',
+    );
 
     const exploreHtml = await (await request('/explore')).text();
     check(
-      '非遗探索页面同时渲染地理星图与关系谱系',
-      exploreHtml.includes('data-star-svg') && exploreHtml.includes('data-person-sphere') && exploreHtml.includes('data-explore-lens="region"') && exploreHtml.includes('data-explore-lens="project"') && exploreHtml.includes('data-explore-lens="person"') && exploreHtml.includes('data-region-mode="time"') && exploreHtml.includes('data-story-trail') && exploreHtml.includes('data-drawer-rail') && exploreHtml.includes('data-drawer-tab="detail"') && exploreHtml.includes('data-drawer-tab="legend"') && exploreHtml.includes('data-explore-route="chain"') && exploreHtml.includes('explore.css') && exploreHtml.includes('explore.js') && exploreHtml.includes('public-ai.js'),
+      '非遗探索路由返回 React 应用入口',
+      exploreHtml.includes('id="root"') && exploreHtml.includes('/app/assets/index-'),
     );
-    const exploreMap = await json('/api/explore');
+    const exploreMap = await json('/api/public/explore');
     const starData = exploreMap.payload?.data?.star;
     const graphData = exploreMap.payload?.data?.graph;
     check(
@@ -439,12 +461,15 @@ async function main() {
       '项目星点包含批次与档案完整度',
       starData?.nodes?.every((node) => Object.hasOwn(node, 'batch') && Number.isFinite(Number(node.completeness))),
     );
-    const exploreScript = await (await request('/assets/js/explore.js')).text();
+    const appBundles = appBundleText();
     check(
-      '探索脚本包含正十边形、时间星河、保护星环与单抽屉实现',
-      exploreScript.includes('decagonGuideMarkup') && exploreScript.includes('buildTimeLayout') && exploreScript.includes('protection-ring') && exploreScript.includes('startStory') && exploreScript.includes('updateDrawerUi') && exploreScript.includes('closeDrawer') && exploreScript.includes('narratorPanel'),
+      'React 构建产物包含三类星图与关系探索',
+      ['地域星图', '项目星群', '人物星群'].every((label) => appBundles.includes(label)),
     );
-    check('项目详情页提供非遗探索定位', portalDetail.includes('/explore?lens=region&project=') && portalDetail.includes('/explore?lens=project&project='));
+    check(
+      '项目详情提供非遗探索定位',
+      appBundles.includes('/explore?lens=project&project=') || appBundles.includes('/explore?lens=project'),
+    );
     const legacyGraph = await request('/graph?project=1');
     const legacyLocation = String(legacyGraph.headers.get('location') || '');
     check('旧知识图谱地址兼容跳转到非遗探索', legacyGraph.status === 302 && legacyLocation.startsWith('/explore?') && legacyLocation.includes('lens=project') && legacyLocation.includes('project=1'), legacyLocation);
@@ -474,14 +499,14 @@ async function main() {
       overlaySelectors.slice(0, 60),
     );
 
-    const sampleList = await json('/api/projects?pageSize=200');
-    // 需要同时有封面与长文，才能验证「叙事内容 + 影像墙」；国家级项目长文待 AI 起草，先取已有内容的项目
-    const sample = sampleList.payload?.data?.items?.find((item) => item.cover_path && item.history);
+    const sampleList = await json('/api/public/projects?pageSize=60');
+    const sample = sampleList.payload?.data?.items?.find((item) => item.coverUrl && item.summary);
     if (sample) {
-      const sampleHtml = await (await request(`/projects/${sample.id}`)).text();
+      const sampleApi = await json(`/api/public/projects/${sample.id}`);
+      const sampleData = sampleApi.payload?.data;
       check(
-        '示例项目详情页含叙事内容与影像墙',
-        sampleHtml.includes('历史渊源') && sampleHtml.includes('gallery-grid'),
+        '示例项目 API 含摘要与影像档案',
+        sampleApi.status === 200 && Boolean(sampleData?.project?.summary) && sampleData.attachments.some((item) => item.kind === 'image'),
         `${sample.name}`,
       );
     } else {
@@ -490,8 +515,8 @@ async function main() {
 
     console.log('\n[8] 清理测试数据');
     await cleanupCreated();
-    const afterCleanup = await request(`/projects/${projectId}`);
-    check('测试数据已清理（门户不可见）', afterCleanup.status === 404);
+    const afterCleanup = await json(`/api/public/projects/${projectId}`);
+    check('测试数据已清理（门户 API 不可见）', afterCleanup.status === 404);
 
     console.log('\n[9] 角色边界（录入员 vs 管理员）');
     await json('/api/auth/login', { method: 'POST', body: { username: 'editor', password: 'Editor@123' } });
@@ -583,24 +608,28 @@ async function main() {
       check('官方编号入库', sampleProject.source_code === 'Ⅰ-1', sampleProject.source_code);
       check('批次与年份已拆分', sampleProject.batch === '第一批' && Number(sampleProject.published_year) === 2006, `${sampleProject.batch}/${sampleProject.published_year}`);
       check('申报地区原文保留', String(sampleProject.region_text || '').includes('台江'), sampleProject.region_text);
-      const detail = await request(`/projects/${sampleProject.id}`);
-      const detailHtml = await detail.text();
-      check('详情页展示官方编号', detail.status === 200 && detailHtml.includes('官方编号'));
-      check('详情页有 4 张配图', (detailHtml.match(/gallery-item/g) || []).length === 4, `${(detailHtml.match(/gallery-item/g) || []).length} 张`);
-      check('详情页标注图片版权', detailHtml.includes('仅用于教学演示'));
-      check('详情页标注内容来源', detailHtml.includes('内容来源'));
+      const detail = await json(`/api/public/projects/${sampleProject.id}`);
+      const detailData = detail.payload?.data;
+      const images = (detailData?.attachments || []).filter((item) => item.kind === 'image');
+      check('项目 API 返回官方编号', detail.status === 200 && detailData?.project?.sourceCode === 'Ⅰ-1');
+      check('项目 API 返回 4 张配图', images.length === 4, `${images.length} 张`);
+      check(
+        '项目 API 保留图片版权与来源字段',
+        images.every((item) => item.sourceKind || item.sourceUrl || item.license),
+      );
+      check('项目 API 保留内容来源', Boolean(detailData?.project?.contentSource));
     }
 
     const inheritorList = await json('/api/inheritors?status=published&pageSize=200');
     const nationalPeople = (inheritorList.payload?.data?.items || []).filter((item) => String(item.code || '').startsWith('GJCR-'));
     check('国家级传承人已导入（90 位）', nationalPeople.length >= 90, `实际 ${nationalPeople.length} 位`);
     const person = nationalPeople.find((item) => item.name === '王安江') || nationalPeople[0];
-    const personDetail = await request(`/inheritors/${person.id}`);
-    const personHtml = await personDetail.text();
+    const personDetail = await json(`/api/public/inheritors/${person.id}`);
+    const personData = personDetail.payload?.data;
     check(
-      '传承人详情页展示关联项目',
-      personDetail.status === 200 && personHtml.includes('代表性项目'),
-      `${person.name} 页面 ${personDetail.status}`,
+      '传承人 API 返回关联项目',
+      personDetail.status === 200 && personData?.projects?.length > 0,
+      `${person.name} 返回 ${personData?.projects?.length || 0} 个关联项目`,
     );
     check('传承人记录了从业起始年', Number(person.career_start_year) > 1900, String(person.career_start_year));
     const imageStats = await json('/api/stats/dashboard');
@@ -675,26 +704,22 @@ async function main() {
     const guestIp = `10.99.0.${Math.floor(Math.random() * 250) + 2}`;
     const guestHeaders = { 'X-Forwarded-For': guestIp };
 
-    const guestHome = await request('/');
-    const guestHomeHtml = await guestHome.text();
-    check('首页已嵌入数字讲解员', guestHomeHtml.includes('问一问数字讲解员') && guestHomeHtml.includes('data-ai-root') && guestHomeHtml.includes('ai-narrator-avatar'));
-    check('首页 AI 区块无需登录即可见', guestHomeHtml.includes('data-ai-form'));
-    check('首页 AI 支持语音输入与朗读入口', guestHomeHtml.includes('data-ai-mic') && guestHomeHtml.includes('data-ai-voice-status'));
-    check('首页不再出现虚构示例电话', !guestHomeHtml.includes('81000000'));
+    const guestHome = await json('/api/public/home');
+    check('首页公开 API 返回统计、门类与推荐内容', guestHome.status === 200 && guestHome.payload?.data?.stats?.projects > 0 && guestHome.payload?.data?.categories?.length === 10);
+    check('首页已接入数字讲解员', appBundleText().includes('小遗') && appBundleText().includes('PROJECT NARRATION'));
+    check('首页 AI 支持语音输入与朗读', appBundleText().includes('speechSynthesis') && appBundleText().includes('SpeechRecognition'));
+    check('首页公开数据不含虚构示例电话', !JSON.stringify(guestHome.payload || {}).includes('81000000'));
 
-    const visitPage = await request('/organizations');
-    const visitHtml = await visitPage.text();
+    const visitPage = await json('/api/public/visit');
     check('探访线索页可访问', visitPage.status === 200);
-    check('探访页含核实提示', visitHtml.includes('不会展示未核实的联系方式'));
-    check('探访页不含虚构地址与电话', !visitHtml.includes('81000000') && !visitHtml.includes('文化路8号'));
-    check('探访页展示省份聚合线索', (visitHtml.match(/card-visit/g) || []).length >= 10, `${(visitHtml.match(/card-visit/g) || []).length} 张卡片`);
+    check('探访页含未核实联系方式提示', appBundleText().includes('不会展示未核实的联系方式'));
+    check('探访 API 不含虚构地址与电话', !JSON.stringify(visitPage.payload || {}).includes('81000000') && !JSON.stringify(visitPage.payload || {}).includes('文化路8号'));
+    check('探访 API 返回省份聚合线索', Number(visitPage.payload?.data?.meta?.provinceTotal || 0) >= 10, `${visitPage.payload?.data?.meta?.provinceTotal || 0} 个省份`);
 
-    const detailForAi = await request(`/projects/${sampleProject ? sampleProject.id : 1}`);
-    const detailForAiHtml = await detailForAi.text();
-    check('项目详情页有数字讲解员悬浮入口', detailForAiHtml.includes('data-ai-fab') && detailForAiHtml.includes('public-ai.js'));
+    check('项目详情页有数字讲解员入口', appBundleText().includes('PROJECT NARRATION'));
     check(
       '项目详情页支持三种项目讲解词版本',
-      detailForAiHtml.includes('data-ai-narration') && detailForAiHtml.includes('data-ai-narration-mode="brief"') && detailForAiHtml.includes('data-ai-narration-mode="detailed"') && detailForAiHtml.includes('data-ai-narration-mode="child"'),
+      ['简短版', '详细版', '儿童版'].every((label) => appBundleText().includes(label)),
     );
 
     const narrationBrief = await json(`/api/public/ai/narrate?project_id=${sampleProject ? sampleProject.id : 1}&mode=brief`);
@@ -712,10 +737,9 @@ async function main() {
     );
     const narrationMissing = await json('/api/public/ai/narrate?project_id=999999&mode=brief');
     check('未发布或不存在的项目不能生成讲解词（404）', narrationMissing.status === 404);
-    const publicAiScript = await (await request('/assets/js/public-ai.js')).text();
     check(
-      '数字讲解员脚本包含语音合成、语音识别与本地讲解接口',
-      publicAiScript.includes('SpeechSynthesisUtterance') && publicAiScript.includes('SpeechRecognition') && publicAiScript.includes('/api/public/ai/narrate'),
+      '数字讲解员构建产物包含语音合成、语音识别与本地讲解接口',
+      appBundleText().includes('speechSynthesis') && appBundleText().includes('SpeechRecognition') && appBundleText().includes('narrate'),
     );
 
     const guestAnswer = await json('/api/public/ai/chat', {
@@ -794,7 +818,7 @@ async function main() {
     );
     check(
       '归档基地不出现在门户探访页',
-      !visitHtml.includes('秦淮非遗展示馆') && !visitHtml.includes('姑苏绣艺非遗工坊'),
+      !JSON.stringify(visitPage.payload || {}).includes('秦淮非遗展示馆') && !JSON.stringify(visitPage.payload || {}).includes('姑苏绣艺非遗工坊'),
     );
 
     void editorCookie;

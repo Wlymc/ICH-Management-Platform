@@ -6,6 +6,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const ROOT = path.resolve(here, '..');
 
+const envFile = path.join(ROOT, '.env');
+if (fs.existsSync(envFile) && typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile(envFile);
+  } catch {
+    /* 环境文件损坏时继续使用系统环境变量与默认值 */
+  }
+}
+
 /** 平台品牌配置：改名只需修改此处 */
 export const BRAND = {
   name: '非遗数字管理平台',
@@ -25,6 +34,7 @@ export const PATHS = {
   data: path.join(ROOT, 'data'),
   db: path.join(ROOT, 'data', 'ich.db'),
   uploads: path.join(ROOT, 'uploads'),
+  models3d: path.join(ROOT, '3D模型'),
   publicDir: path.join(ROOT, 'public'),
 };
 
@@ -66,6 +76,7 @@ export const PORTAL = {
   showVisitSection: true,
   showContentSource: true,
   showExplore: true,
+  show3D: true,
 };
 
 /**

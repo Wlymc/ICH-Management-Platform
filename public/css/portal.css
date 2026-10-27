@@ -23,6 +23,12 @@
 .nav-link.is-active { background: var(--red-soft); color: var(--red-dark); font-weight: 600; }
 
 .header-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.portal-back-button {
+  flex: 0 0 auto; padding: 7px 11px; border: 1px solid var(--line);
+  border-radius: 999px; background: #fffdf9; color: var(--ink-2);
+  font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.portal-back-button:hover { border-color: var(--red); color: var(--red); }
 .header-search { display: flex; align-items: center; background: #f5f1ea; border-radius: 999px; padding: 4px 4px 4px 14px; border: 1px solid transparent; transition: border-color .15s, background .15s; }
 .header-search:focus-within { border-color: var(--red); background: #fff; }
 .header-search input { border: none; background: none; outline: none; width: 180px; font-size: 14px; }
@@ -347,6 +353,9 @@
 }
 .ai-sample:hover { border-color: var(--red); color: var(--red); border-style: solid; }
 .ai-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ai-recommendations { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.ai-recommendations > b { font-size: 11.5px; color: var(--ink-3); font-weight: 500; letter-spacing: .04em; }
+.ai-recommendations .ai-links { margin-top: 7px; }
 .ai-link {
   display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12.5px;
   border: 1px solid var(--line); background: #fff; color: var(--ink-2);
@@ -358,11 +367,27 @@
 .ai-source ul { list-style: none; margin: 7px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ai-source li { font-size: 13px; display: flex; gap: 6px; align-items: center; }
 .ai-source-tag { background: #f3f0ea; border-radius: 4px; padding: 1px 7px; font-size: 11.5px; color: var(--ink-2); }
+.ai-source-verification {
+  flex: 0 0 auto; padding: 1px 6px; border-radius: 4px; font-size: 10.5px;
+}
+.ai-source-verification.is-verified { color: #256642; background: #e8f5ed; }
+.ai-source-verification.is-example { color: #8a6100; background: #fff3ce; }
+.ai-source-verification.is-unverified { color: #7c6670; background: #f3eef0; }
+.ai-source-warning {
+  margin: 8px 0 0; padding: 7px 9px; border-left: 2px solid #d0a640;
+  background: #fff9e8; color: #7a5c13; font-size: 11px; line-height: 1.6;
+}
 .ai-source a { color: var(--red); }
 .ai-footnote { margin: 14px 0 0; font-size: 12px; color: var(--ink-3); line-height: 1.7; }
 .ai-speech-tools { display: flex; gap: 7px; margin-top: 8px; padding-top: 7px; border-top: 1px dashed rgba(110,94,75,.16); }
 .ai-speak { padding: 3px 10px; border: 1px solid #d8c5aa; border-radius: 999px; background: #fffaf2; color: #7f6850; font-size: 11px; cursor: pointer; }
 .ai-speak:hover, .ai-speak.is-active { border-color: var(--red); color: var(--red); }
+.ai-chat-actions { display: flex; justify-content: flex-end; }
+.ai-new-chat {
+  padding: 3px 9px; border: 1px solid #dfd0ba; border-radius: 999px;
+  background: #fffaf2; color: var(--ink-3); font-size: 10.5px; cursor: pointer;
+}
+.ai-new-chat:hover { border-color: var(--red); color: var(--red); }
 
 /* 详情页右下角悬浮入口 */
 .ai-fab { position: fixed; right: 22px; bottom: 22px; z-index: 300; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
@@ -381,6 +406,8 @@
 .ai-fab-head strong { font-size: 14.5px; }
 .ai-fab-close { border: none; background: none; font-size: 20px; line-height: 1; color: var(--ink-3); cursor: pointer; }
 .ai-fab-panel .ai-samples { display: none; }
+.ai-global-fab .ai-samples { display: flex; }
+.ai-global-fab .ai-thread { max-height: 270px; }
 
 .site-footer { margin-top: 60px; background: #2b2724; color: rgba(255, 255, 255, .72); padding: 38px 0 28px; }
 .footer-inner { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding-bottom: 22px; border-bottom: 1px solid rgba(255, 255, 255, .12); }
@@ -598,6 +625,7 @@
 }
 
 @media (max-width: 560px) {
+  .portal-back-button { padding: 6px 9px; font-size: 11.5px; }
   .card-grid { grid-template-columns: 1fr; gap: 16px; }
   .wall-grid { grid-template-columns: repeat(2, 1fr); }
   .cat-grid { grid-template-columns: repeat(2, 1fr); }

@@ -16,6 +16,8 @@ const MIME = {
   '.mp3': 'audio/mpeg',
   '.wav': 'audio/wav',
   '.ogg': 'audio/ogg',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
   '.pdf': 'application/pdf',
   '.doc': 'application/msword',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

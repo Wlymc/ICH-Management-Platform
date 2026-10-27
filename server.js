@@ -7,8 +7,8 @@ import { seedAll } from './src/seed.js';
 import { currentUser, pruneSessions } from './src/auth.js';
 import { handleApi } from './src/routes/api.js';
 import { handleAdmin } from './src/routes/admin.js';
-import { handlePortal } from './src/routes/portal.js';
 import { clientIp, mimeFor, sendError, sendHtml, sendNotFound } from './src/http.js';
+import { renderReactSeo } from './src/react-seo.js';
 
 seedAll();
 pruneSessions();
@@ -47,6 +47,25 @@ function serveFrom(res, baseDir, relativePath, { download = false } = {}) {
   fs.createReadStream(target).pipe(res);
 }
 
+function redirectTo(res, location) {
+  res.writeHead(302, { Location: location, 'Cache-Control': 'no-store' });
+  res.end();
+}
+
+function serveReactPage(req, res, pathname) {
+  const appRoot = path.join(PATHS.publicDir, 'app');
+  const indexPath = path.join(appRoot, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    sendNotFound(res);
+    return;
+  }
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const protocol = forwardedProto || (req.socket.encrypted ? 'https' : 'http');
+  const origin = `${protocol}://${req.headers.host || `localhost:${SERVER.port}`}`;
+  const template = fs.readFileSync(indexPath, 'utf8');
+  sendHtml(res, renderReactSeo(template, { pathname, origin }));
+}
+
 const server = http.createServer(async (req, res) => {
   const started = Date.now();
   let url;
@@ -59,12 +78,50 @@ const server = http.createServer(async (req, res) => {
   const pathname = decodeURI(url.pathname);
 
   try {
+    if (pathname === '/app') {
+      redirectTo(res, `/${url.search}`);
+      return;
+    }
+    if (pathname.startsWith('/app/assets/') || pathname.startsWith('/app/vendor/')) {
+      const appRoot = path.join(PATHS.publicDir, 'app');
+      const relative = pathname.slice('/app/'.length);
+      const requested = path.resolve(appRoot, relative || 'index.html');
+      if (
+        requested.startsWith(path.resolve(appRoot)) &&
+        fs.existsSync(requested) &&
+        fs.statSync(requested).isFile()
+      ) {
+        serveFrom(res, appRoot, relative || 'index.html');
+        return;
+      }
+      if (!path.extname(relative)) {
+        serveFrom(res, appRoot, 'index.html');
+        return;
+      }
+      sendNotFound(res);
+      return;
+    }
+    if (pathname.startsWith('/app/')) {
+      redirectTo(res, `/${pathname.slice('/app/'.length)}${url.search}`);
+      return;
+    }
+    if (pathname === '/xingtu' || pathname === '/graph') {
+      redirectTo(
+        res,
+        `/explore?lens=${pathname === '/graph' ? 'project' : 'region'}${url.search ? `&${url.search.slice(1)}` : ''}`,
+      );
+      return;
+    }
     if (pathname.startsWith('/assets/')) {
       serveFrom(res, PATHS.publicDir, pathname.slice('/assets/'.length));
       return;
     }
     if (pathname.startsWith('/uploads/')) {
       serveFrom(res, PATHS.uploads, pathname.slice('/uploads/'.length));
+      return;
+    }
+    if (pathname.startsWith('/models3d/')) {
+      serveFrom(res, PATHS.models3d, pathname.slice('/models3d/'.length));
       return;
     }
     if (pathname === '/favicon.ico') {
@@ -87,8 +144,20 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const handled = handlePortal(req, res, url);
-    if (!handled && !res.writableEnded) sendNotFound(res);
+    const isReactRoute =
+      pathname === '/' ||
+      pathname === '/explore' ||
+      pathname === '/projects' ||
+      pathname.startsWith('/projects/') ||
+      pathname === '/inheritors' ||
+      pathname.startsWith('/inheritors/') ||
+      pathname === '/organizations' ||
+      pathname.startsWith('/organizations/');
+    if (isReactRoute) {
+      serveReactPage(req, res, pathname);
+      return;
+    }
+    sendNotFound(res);
   } catch (error) {
     if (!res.writableEnded) {
       if (pathname.startsWith('/api/')) {

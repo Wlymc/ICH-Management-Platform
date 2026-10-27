@@ -1,0 +1,227 @@
+.react-site-main {
+  min-height: 60vh;
+}
+
+.react-loading-card,
+.react-error-card {
+  display: grid;
+  max-width: 760px;
+  min-height: 180px;
+  margin: 48px auto;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  align-content: center;
+  justify-items: center;
+  color: var(--ink-2);
+  background: rgba(255, 253, 248, 0.92);
+  text-align: center;
+}
+
+.react-loading-card span {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 12px;
+  border: 2px solid rgba(168, 50, 45, 0.2);
+  border-top-color: var(--red);
+  border-radius: 50%;
+  animation: react-spin 0.9s linear infinite;
+}
+
+@keyframes react-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.react-error-card p {
+  color: var(--ink-3);
+}
+
+.react-home-hero .hero-inner {
+  min-height: 460px;
+}
+
+.react-ai-home {
+  padding-top: 42px;
+}
+
+.react-ai .ai-narrator {
+  position: relative;
+}
+
+.react-ai .ai-narrator-copy {
+  flex: 1;
+}
+
+.react-ai .ai-samples {
+  display: flex;
+}
+
+.react-ai-fab .ai-fab-panel {
+  padding: 12px;
+}
+
+.react-ai-fab .ai-root {
+  max-height: min(72vh, 650px);
+}
+
+.react-ai-fab .ai-thread {
+  max-height: 300px;
+}
+
+.react-filter-bar {
+  position: sticky;
+  z-index: 20;
+  top: 76px;
+  box-shadow: 0 8px 24px rgba(60, 45, 28, 0.06);
+}
+
+.react-pagination {
+  justify-content: center;
+  gap: 14px;
+}
+
+.react-pagination button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.react-pagination button:disabled {
+  opacity: 0.4;
+}
+
+.react-person-card .person-cover {
+  object-position: center top;
+}
+
+.react-side-profile {
+  width: 100%;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.react-narration {
+  background: #fffdf8;
+}
+
+.react-explore {
+  padding-bottom: 70px;
+}
+
+.react-explore-layout {
+  display: grid;
+  margin-top: 14px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+}
+
+.react-star-shell {
+  position: relative;
+  min-height: 620px;
+  overflow: hidden;
+  border-radius: 14px;
+  background:
+    radial-gradient(680px 480px at 48% 46%, rgba(46, 100, 117, 0.25), transparent 68%), #091721;
+}
+
+.react-star-svg {
+  width: 100%;
+  height: 620px;
+}
+
+.react-star-node {
+  cursor: pointer;
+  outline: none;
+}
+
+.react-star-node circle + circle {
+  filter: drop-shadow(0 0 5px currentColor);
+}
+
+.react-star-node text {
+  fill: rgba(232, 238, 238, 0.78);
+  font: 11px var(--sans);
+  paint-order: stroke;
+  stroke: rgba(9, 23, 33, 0.9);
+  stroke-width: 4px;
+}
+
+.react-star-node:hover text,
+.react-star-node:focus text {
+  fill: #fff;
+}
+
+.react-star-tools {
+  position: absolute;
+  z-index: 2;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  gap: 5px;
+}
+
+.react-star-tools button {
+  width: 34px;
+  height: 32px;
+  border: 1px solid rgba(217, 189, 118, 0.3);
+  border-radius: 6px;
+  color: #e5dfdf;
+  background: rgba(7, 20, 28, 0.84);
+  cursor: pointer;
+}
+
+.react-explore-panel {
+  padding: 24px 22px;
+  border: 1px solid #ddcfbc;
+  border-radius: 14px;
+  background: #fffdf8;
+}
+
+.react-explore-panel h2 {
+  margin: 5px 0 8px;
+  font-size: 30px;
+}
+
+.react-explore-panel > p {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.react-explore-panel .explore-stat-grid {
+  margin-top: 22px;
+}
+
+@media (max-width: 900px) {
+  .react-explore-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .react-star-shell {
+    min-height: 480px;
+  }
+
+  .react-star-svg {
+    height: 480px;
+  }
+}
+
+@media (max-width: 560px) {
+  .react-filter-bar {
+    top: 0;
+  }
+
+  .react-ai-fab .ai-fab-panel {
+    width: calc(100vw - 20px);
+  }
+
+  .react-star-shell {
+    min-height: 400px;
+  }
+
+  .react-star-svg {
+    height: 400px;
+  }
+}

@@ -66,6 +66,18 @@ import { buildStarMapData } from '../star-map.js';
 import { buildKnowledgeGraphData } from '../knowledge-graph.js';
 import { buildProjectNarration } from '../narration.js';
 import {
+  getPublicInheritor,
+  getPublicOrganization,
+  getPublicProject,
+  listPublicInheritors,
+  listPublicOrganizations,
+  listPublicProjects,
+  publicExploreData,
+  publicFilterOptions,
+  publicHomeData,
+  publicVisitGuideData,
+} from '../public-api.js';
+import {
   clientIp,
   fail,
   ok,
@@ -385,6 +397,62 @@ export async function handleApi(req, res, url, user) {
 
   /* ---------------- 游客 AI（无需登录，按 IP 限流） ---------------- */
 
+  if (pathname.startsWith('/api/public/')) {
+    if (!['/api/public/ai/chat', '/api/public/ai/query', '/api/public/ai/narrate'].includes(pathname) && method !== 'GET') {
+      fail(res, 405, '方法不允许');
+      return true;
+    }
+    if (pathname === '/api/public/home') {
+      ok(res, publicHomeData());
+      return true;
+    }
+    if (pathname === '/api/public/options') {
+      ok(res, publicFilterOptions());
+      return true;
+    }
+    if (pathname === '/api/public/projects') {
+      ok(res, listPublicProjects(query));
+      return true;
+    }
+    const projectMatch = pathname.match(/^\/api\/public\/projects\/(\d+)$/);
+    if (projectMatch) {
+      const data = getPublicProject(Number(projectMatch[1]));
+      if (!data) fail(res, 404, '项目不存在或未发布');
+      else ok(res, data);
+      return true;
+    }
+    if (pathname === '/api/public/inheritors') {
+      ok(res, listPublicInheritors(query));
+      return true;
+    }
+    const inheritorMatch = pathname.match(/^\/api\/public\/inheritors\/(\d+)$/);
+    if (inheritorMatch) {
+      const data = getPublicInheritor(Number(inheritorMatch[1]));
+      if (!data) fail(res, 404, '传承人不存在或未发布');
+      else ok(res, data);
+      return true;
+    }
+    if (pathname === '/api/public/organizations') {
+      ok(res, listPublicOrganizations(query));
+      return true;
+    }
+    if (pathname === '/api/public/visit') {
+      ok(res, publicVisitGuideData());
+      return true;
+    }
+    const organizationMatch = pathname.match(/^\/api\/public\/organizations\/(\d+)$/);
+    if (organizationMatch) {
+      const data = getPublicOrganization(Number(organizationMatch[1]));
+      if (!data) fail(res, 404, '探访体验点不存在或未发布');
+      else ok(res, data);
+      return true;
+    }
+    if (pathname === '/api/public/explore') {
+      ok(res, publicExploreData());
+      return true;
+    }
+  }
+
   if (pathname === '/api/public/ai/narrate') {
     if (method !== 'GET') {
       fail(res, 405, '方法不允许');
@@ -431,7 +499,12 @@ export async function handleApi(req, res, url, user) {
       ok(res, runQuery(message, { audience: 'public' }), { remaining: limit.remaining });
       return true;
     }
-    const result = await runCopilot(message, { audience: 'public', maxTokens: 400 });
+    const result = await runCopilot(message, {
+      audience: 'public',
+      maxTokens: 400,
+      history: body.history,
+      context: body.context,
+    });
     ok(res, {
       reply: result.reply,
       kind: result.kind,
