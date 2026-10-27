@@ -158,12 +158,17 @@ export function homeView(data) {
     <div class="ai-card">
       <div class="ai-head">
         <div>
-          <h2 class="section-title">问一问 AI 小助手</h2>
-          <p class="section-sub">不用注册，直接提问。回答基于站内已发布的非遗档案，并附上可点击的来源。</p>
+          <h2 class="section-title">问一问数字讲解员 · 小遗</h2>
+          <p class="section-sub">可以提问、语音输入，也可以让讲解员朗读回答。内容基于站内已发布非遗档案。</p>
         </div>
-        <span class="ai-badge">站内资料回答</span>
+        <span class="ai-badge">数字展厅 · 语音导览</span>
       </div>
-      ${guestAiPanel({ uid: 'home', variant: 'inline', placeholder: '例如：苏绣用什么材料 / 内蒙古有哪些非遗' })}
+      ${guestAiPanel({
+        uid: 'home',
+        variant: 'inline',
+        intro: '欢迎来到非遗数字展厅。我是讲解员小遗，可以为你介绍项目、朗读回答，也支持语音提问。',
+        placeholder: '例如：苏绣用什么材料 / 内蒙古有哪些非遗',
+      })}
       <p class="ai-footnote">AI 只做介绍与查询，不会修改任何档案；回答仅供了解，权威信息以官方名录与保护单位公布为准。</p>
     </div>
   </section>
@@ -259,12 +264,13 @@ export function homeView(data) {
 }
 
 /** 详情页右下角的悬浮入口：不遮挡正文，点开才展开对话面板 */
-function floatingAi(context) {
+function floatingAi(context, { projectId = null } = {}) {
+  const hasProject = Number.isInteger(Number(projectId)) && Number(projectId) > 0;
   return `<div class="ai-fab" data-ai-fab>
-    <button class="ai-fab-toggle" type="button" data-ai-toggle aria-label="打开 AI 小助手">问 AI</button>
+    <button class="ai-fab-toggle" type="button" data-ai-toggle aria-label="打开数字讲解员">讲解</button>
     <div class="ai-fab-panel" data-ai-panel hidden>
       <header class="ai-fab-head">
-        <strong>AI 小助手</strong>
+        <strong>${hasProject ? '数字讲解员 · 小遗' : 'AI 小助手'}</strong>
         <button type="button" class="ai-fab-close" data-ai-close aria-label="收起">×</button>
       </header>
       ${guestAiPanel({
@@ -272,6 +278,8 @@ function floatingAi(context) {
         variant: 'fab',
         intro: `关于${h(context)}，你可以问我它的来历、技艺特点或相关项目。`,
         placeholder: `就${h(context)}提问…`,
+        projectId: hasProject ? Number(projectId) : null,
+        projectName: hasProject ? context : '',
       })}
     </div>
   </div>`;
@@ -447,7 +455,7 @@ export function projectDetailView(data) {
       ${PORTAL.showExplore ? `<div class="side-card star-locate-card"><h3>从关系里看</h3><p>把项目放回地理星区与关系谱系，看看它与门类、地区、传承人之间的关系。</p><div class="side-action-row"><a class="btn btn-primary" href="/explore?lens=region&project=${project.id}">星图定位</a><a class="btn btn-ghost" href="/explore?lens=project&project=${project.id}">查看谱系</a></div></div>` : ''}
     </aside>
   </section>
-  ${floatingAi(project.name)}`;
+  ${floatingAi(project.name, { projectId: project.id })}`;
   return portalLayout({
     title: project.name,
     description: truncate(project.summary, 120),

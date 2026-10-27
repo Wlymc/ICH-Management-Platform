@@ -144,17 +144,51 @@ const GUEST_AI_SAMPLES = [
  * 游客 AI 小助手面板（首页区块与详情页悬浮入口共用）。
  * 通过 data-ai-root 标记，由 public/js/public-ai.js 统一接管交互。
  */
-export function guestAiPanel({ uid, variant = 'inline', intro = '', placeholder = '输入你想了解的非遗…' }) {
+export function guestAiPanel({ uid, variant = 'inline', intro = '', placeholder = '输入你想了解的非遗…', projectId = null, projectName = '' }) {
   const samples = GUEST_AI_SAMPLES.map(
     (text) => `<button type="button" class="ai-sample" data-ask="${h(text)}">${h(text)}</button>`,
   ).join('');
+  const narration = projectId
+    ? `<section class="ai-narration" data-ai-narration data-project-id="${h(projectId)}" data-project-name="${h(projectName)}" data-mode="brief">
+        <div class="ai-narration-head">
+          <div>
+            <span class="ai-narration-kicker">PROJECT NARRATION</span>
+            <strong>听小遗讲《${h(projectName)}》</strong>
+          </div>
+          <span class="ai-narration-hint" data-ai-narration-hint>约 1 分钟</span>
+        </div>
+        <div class="ai-narration-modes" role="group" aria-label="讲解版本">
+          <button type="button" class="is-active" data-ai-narration-mode="brief" aria-pressed="true">简短版</button>
+          <button type="button" data-ai-narration-mode="detailed" aria-pressed="false">详细版</button>
+          <button type="button" data-ai-narration-mode="child" aria-pressed="false">儿童版</button>
+        </div>
+        <div class="ai-narration-actions">
+          <button type="button" class="ai-narration-generate" data-ai-narrate>生成讲解词</button>
+          <span data-ai-voice-status>语音讲解已就绪</span>
+        </div>
+        <div class="ai-narration-result" data-ai-narration-result hidden></div>
+      </section>`
+    : '';
   return `<div class="ai-root is-${variant}" data-ai-root data-uid="${h(uid)}">
+    <div class="ai-narrator">
+      <div class="ai-narrator-avatar" aria-hidden="true">
+        <span class="ai-avatar-ring"></span>
+        <span class="ai-avatar-core">遗</span>
+        <span class="ai-avatar-wave"><i></i><i></i><i></i></span>
+      </div>
+      <div class="ai-narrator-copy">
+        <strong>小遗 · 数字讲解员</strong>
+        <span data-ai-voice-status>可朗读回答，也可以直接说给我听</span>
+      </div>
+    </div>
+    ${narration}
     <div class="ai-thread" data-ai-thread>
-      <div class="ai-msg is-bot">${h(intro || '你好，我是非遗小助手。可以问我某个项目的来历与技艺，或者让我帮你找某类非遗。')}</div>
+      <div class="ai-msg is-bot">${h(intro || '你好，我是数字讲解员小遗。可以问我某个项目的来历与技艺，也可以让我用简短版、详细版或儿童版为你讲解。')}</div>
     </div>
     <form class="ai-form" data-ai-form>
+      <button class="ai-mic" type="button" data-ai-mic aria-label="语音输入" title="语音输入"><span aria-hidden="true"></span></button>
       <input class="ai-input" data-ai-input maxlength="200" autocomplete="off" placeholder="${h(placeholder)}">
-      <button class="btn btn-primary" type="submit" data-ai-send>提问</button>
+      <button class="btn btn-primary" type="submit" data-ai-send>发送</button>
     </form>
     <div class="ai-samples"><span class="ai-samples-label">试试：</span>${samples}</div>
   </div>`;

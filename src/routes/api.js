@@ -64,6 +64,7 @@ import { buildXlsx } from '../report/xlsx.js';
 import { readXlsx } from '../report/xlsx-read.js';
 import { buildStarMapData } from '../star-map.js';
 import { buildKnowledgeGraphData } from '../knowledge-graph.js';
+import { buildProjectNarration } from '../narration.js';
 import {
   clientIp,
   fail,
@@ -383,6 +384,22 @@ export async function handleApi(req, res, url, user) {
   }
 
   /* ---------------- 游客 AI（无需登录，按 IP 限流） ---------------- */
+
+  if (pathname === '/api/public/ai/narrate') {
+    if (method !== 'GET') {
+      fail(res, 405, '方法不允许');
+      return true;
+    }
+    const url = new URL(req.url || '/', 'http://localhost');
+    const projectId = toInt(url.searchParams.get('project_id'), 0);
+    const narration = buildProjectNarration(projectId, url.searchParams.get('mode'));
+    if (!narration) {
+      fail(res, 404, '未找到可讲解的已发布项目');
+      return true;
+    }
+    ok(res, narration);
+    return true;
+  }
 
   if (pathname === '/api/public/ai/chat' || pathname === '/api/public/ai/query') {
     if (method !== 'POST') {

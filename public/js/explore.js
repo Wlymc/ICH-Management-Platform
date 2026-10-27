@@ -842,6 +842,33 @@
     return `<button type="button" class="explore-list-item" data-entity-key="${esc(key)}"><i style="--item-color:${esc(color || '#c8a45c')}"></i><span>${esc(label)}</span><small>${esc(KIND_LABEL[kind] || kind)}</small></button>`;
   }
 
+  function narratorPanel(project) {
+    return `<section class="ai-narration explore-ai-narration" data-ai-narration data-project-id="${esc(project.id)}" data-project-name="${esc(project.label)}" data-mode="brief">
+      <div class="explore-narrator-line">
+        <div class="ai-narrator-avatar" aria-hidden="true">
+          <span class="ai-avatar-ring"></span>
+          <span class="ai-avatar-core">遗</span>
+          <span class="ai-avatar-wave"><i></i><i></i><i></i></span>
+        </div>
+        <div>
+          <span class="ai-narration-kicker">DIGITAL NARRATOR</span>
+          <strong>听小遗讲解这个项目</strong>
+          <span data-ai-voice-status>选择版本后生成讲解词</span>
+        </div>
+      </div>
+      <div class="ai-narration-modes" role="group" aria-label="讲解版本">
+        <button type="button" class="is-active" data-ai-narration-mode="brief" aria-pressed="true">简短版</button>
+        <button type="button" data-ai-narration-mode="detailed" aria-pressed="false">详细版</button>
+        <button type="button" data-ai-narration-mode="child" aria-pressed="false">儿童版</button>
+      </div>
+      <div class="ai-narration-actions">
+        <button type="button" class="ai-narration-generate" data-ai-narrate>生成讲解词</button>
+        <span class="ai-narration-hint" data-ai-narration-hint>约 1 分钟</span>
+      </div>
+      <div class="ai-narration-result" data-ai-narration-result hidden></div>
+    </section>`;
+  }
+
   function renderQuick() {
     if (state.lens === 'region') {
       if (state.regionMode === 'time') {
@@ -934,6 +961,7 @@
       <div class="archive-meter" style="--archive-value:${completeness}%"><span><i></i></span><p><em>档案完整度</em><b>${completeness}%</b></p></div>
       <dl class="explore-stat-grid"><div class="explore-stat"><dt>公布年份</dt><dd>${project.year || '待补'}</dd></div><div class="explore-stat"><dt>名录批次</dt><dd>${esc(starProject?.batch || '待补')}</dd></div><div class="explore-stat"><dt>关联传承人</dt><dd>${project.inheritorCount || 0} 位</dd></div><div class="explore-stat"><dt>档案图片</dt><dd>${project.imageCount || 0} 张</dd></div></dl>
       <div class="explore-detail-section"><h3>关系速览</h3><div class="explore-list">${category ? relationButton(keyOf('category', category.id), category.label, 'category', category.color) : ''}${regions.map((region) => relationButton(keyOf('region', region.id), region.label, 'region', '#9cc48a')).join('')}${persons.map((person) => relationButton(keyOf('inheritor', person.id), person.label, 'inheritor', LEVEL_COLORS[person.levelName] || '#7fa8d8')).join('')}</div></div>
+      <div class="explore-detail-section"><h3>数字讲解员</h3>${narratorPanel(project)}</div>
       ${project.summary ? `<div class="explore-detail-section"><h3>项目摘录</h3><p>${esc(truncate(project.summary, 160))}</p></div>` : ''}
       <a class="explore-detail-link" href="${esc(project.detailHref || `/projects/${project.id}`)}">查看完整档案 →</a>`;
   }

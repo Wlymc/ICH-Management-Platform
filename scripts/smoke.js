@@ -421,7 +421,7 @@ async function main() {
     const exploreHtml = await (await request('/explore')).text();
     check(
       '非遗探索页面同时渲染地理星图与关系谱系',
-      exploreHtml.includes('data-star-svg') && exploreHtml.includes('data-person-sphere') && exploreHtml.includes('data-explore-lens="region"') && exploreHtml.includes('data-explore-lens="project"') && exploreHtml.includes('data-explore-lens="person"') && exploreHtml.includes('data-region-mode="time"') && exploreHtml.includes('data-story-trail') && exploreHtml.includes('data-drawer-rail') && exploreHtml.includes('data-drawer-tab="detail"') && exploreHtml.includes('data-drawer-tab="legend"') && exploreHtml.includes('data-explore-route="chain"') && exploreHtml.includes('explore.css') && exploreHtml.includes('explore.js'),
+      exploreHtml.includes('data-star-svg') && exploreHtml.includes('data-person-sphere') && exploreHtml.includes('data-explore-lens="region"') && exploreHtml.includes('data-explore-lens="project"') && exploreHtml.includes('data-explore-lens="person"') && exploreHtml.includes('data-region-mode="time"') && exploreHtml.includes('data-story-trail') && exploreHtml.includes('data-drawer-rail') && exploreHtml.includes('data-drawer-tab="detail"') && exploreHtml.includes('data-drawer-tab="legend"') && exploreHtml.includes('data-explore-route="chain"') && exploreHtml.includes('explore.css') && exploreHtml.includes('explore.js') && exploreHtml.includes('public-ai.js'),
     );
     const exploreMap = await json('/api/explore');
     const starData = exploreMap.payload?.data?.star;
@@ -442,7 +442,7 @@ async function main() {
     const exploreScript = await (await request('/assets/js/explore.js')).text();
     check(
       '探索脚本包含正十边形、时间星河、保护星环与单抽屉实现',
-      exploreScript.includes('decagonGuideMarkup') && exploreScript.includes('buildTimeLayout') && exploreScript.includes('protection-ring') && exploreScript.includes('startStory') && exploreScript.includes('updateDrawerUi') && exploreScript.includes('closeDrawer'),
+      exploreScript.includes('decagonGuideMarkup') && exploreScript.includes('buildTimeLayout') && exploreScript.includes('protection-ring') && exploreScript.includes('startStory') && exploreScript.includes('updateDrawerUi') && exploreScript.includes('closeDrawer') && exploreScript.includes('narratorPanel'),
     );
     check('项目详情页提供非遗探索定位', portalDetail.includes('/explore?lens=region&project=') && portalDetail.includes('/explore?lens=project&project='));
     const legacyGraph = await request('/graph?project=1');
@@ -677,8 +677,9 @@ async function main() {
 
     const guestHome = await request('/');
     const guestHomeHtml = await guestHome.text();
-    check('首页已嵌入 AI 小助手', guestHomeHtml.includes('问一问 AI 小助手') && guestHomeHtml.includes('data-ai-root'));
+    check('首页已嵌入数字讲解员', guestHomeHtml.includes('问一问数字讲解员') && guestHomeHtml.includes('data-ai-root') && guestHomeHtml.includes('ai-narrator-avatar'));
     check('首页 AI 区块无需登录即可见', guestHomeHtml.includes('data-ai-form'));
+    check('首页 AI 支持语音输入与朗读入口', guestHomeHtml.includes('data-ai-mic') && guestHomeHtml.includes('data-ai-voice-status'));
     check('首页不再出现虚构示例电话', !guestHomeHtml.includes('81000000'));
 
     const visitPage = await request('/organizations');
@@ -690,7 +691,32 @@ async function main() {
 
     const detailForAi = await request(`/projects/${sampleProject ? sampleProject.id : 1}`);
     const detailForAiHtml = await detailForAi.text();
-    check('项目详情页有 AI 悬浮入口', detailForAiHtml.includes('data-ai-fab') && detailForAiHtml.includes('public-ai.js'));
+    check('项目详情页有数字讲解员悬浮入口', detailForAiHtml.includes('data-ai-fab') && detailForAiHtml.includes('public-ai.js'));
+    check(
+      '项目详情页支持三种项目讲解词版本',
+      detailForAiHtml.includes('data-ai-narration') && detailForAiHtml.includes('data-ai-narration-mode="brief"') && detailForAiHtml.includes('data-ai-narration-mode="detailed"') && detailForAiHtml.includes('data-ai-narration-mode="child"'),
+    );
+
+    const narrationBrief = await json(`/api/public/ai/narrate?project_id=${sampleProject ? sampleProject.id : 1}&mode=brief`);
+    const narrationDetailed = await json(`/api/public/ai/narrate?project_id=${sampleProject ? sampleProject.id : 1}&mode=detailed`);
+    const narrationChild = await json(`/api/public/ai/narrate?project_id=${sampleProject ? sampleProject.id : 1}&mode=child`);
+    check(
+      '项目讲解词接口返回三种本地版本',
+      narrationBrief.status === 200 && narrationBrief.payload?.data?.mode === 'brief' &&
+        narrationDetailed.payload?.data?.mode === 'detailed' && narrationDetailed.payload?.data?.sections?.length >= 4 &&
+        narrationChild.payload?.data?.mode === 'child' && narrationChild.payload?.data?.sections?.length >= 3,
+    );
+    check(
+      '讲解词可直接用于语音朗读',
+      String(narrationBrief.payload?.data?.script || '').length > 40 && !narrationBrief.payload?.data?.script?.includes('/'),
+    );
+    const narrationMissing = await json('/api/public/ai/narrate?project_id=999999&mode=brief');
+    check('未发布或不存在的项目不能生成讲解词（404）', narrationMissing.status === 404);
+    const publicAiScript = await (await request('/assets/js/public-ai.js')).text();
+    check(
+      '数字讲解员脚本包含语音合成、语音识别与本地讲解接口',
+      publicAiScript.includes('SpeechSynthesisUtterance') && publicAiScript.includes('SpeechRecognition') && publicAiScript.includes('/api/public/ai/narrate'),
+    );
 
     const guestAnswer = await json('/api/public/ai/chat', {
       method: 'POST',

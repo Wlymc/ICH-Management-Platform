@@ -11,7 +11,7 @@ export function exploreView({ data }) {
     active: 'explore',
     bodyClass: 'explore-page',
     styles: ['css/explore.css'],
-    scripts: ['js/explore.js'],
+    scripts: ['js/explore.js', 'js/public-ai.js'],
     body: `
   <div class="explore-app" data-explore-app data-api="/api/explore">
     <header class="explore-hero">
