@@ -6,6 +6,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const ROOT = path.resolve(here, '..');
 
+const envFile = path.join(ROOT, '.env');
+if (fs.existsSync(envFile)) {
+  for (const line of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (!match || process.env[match[1]] !== undefined) continue;
+    const value = match[2].replace(/^(['"])(.*)\1$/, '$2');
+    process.env[match[1]] = value;
+  }
+}
+
 /** 平台品牌配置：改名只需修改此处 */
 export const BRAND = {
   name: '非遗数字管理平台',

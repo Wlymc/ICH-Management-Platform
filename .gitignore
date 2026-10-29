@@ -3,6 +3,7 @@
 !/data/source/
 /uploads/
 /exports/
+/tmp/
 /.env
 /.env.*
 !/.env.example

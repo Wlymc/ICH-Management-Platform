@@ -258,6 +258,29 @@
   color: #8e2f2a;
 }
 
+.explore-quick button.is-active {
+  border-color: #a8322d;
+  color: #8e2f2a;
+  background: #f6e2d9;
+}
+
+.explore-category-select {
+  min-width: 150px;
+  padding: 6px 26px 6px 10px;
+  border: 1px solid #dec9b1;
+  border-radius: 7px;
+  outline: none;
+  color: #74695c;
+  background: #fdf7ee;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.explore-category-select:focus {
+  border-color: #a8322d;
+  box-shadow: 0 0 0 3px rgba(168, 50, 45, 0.08);
+}
+
 .explore-stage {
   position: relative;
   margin-top: 12px;
@@ -315,6 +338,31 @@
   margin: 0;
   color: #94897b;
   font-size: 11.5px;
+}
+
+.explore-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  color: rgba(223, 210, 179, 0.62);
+  font-size: 9.5px;
+}
+
+.explore-path button {
+  padding: 2px 7px;
+  border: 1px solid rgba(200, 164, 92, 0.22);
+  border-radius: 999px;
+  color: #d9c48f;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.explore-path button:hover {
+  border-color: rgba(217, 189, 118, 0.64);
+  color: #f1dfb0;
 }
 
 .visual-legend {
@@ -391,14 +439,76 @@
   height: 100%;
   cursor: grab;
   touch-action: none;
+  transition: transform 0.28s ease;
 }
 
 .star-svg:active {
   cursor: grabbing;
 }
 
+.star-shell.is-region-3d .star-svg {
+  transform: perspective(1500px) rotateX(10deg) rotateY(-2deg) scale(1.035);
+  transform-origin: 50% 56%;
+}
+
+.star-shell.is-project-3d .star-svg {
+  transform: perspective(1600px) rotateX(8deg) scale(1.025);
+  transform-origin: 50% 55%;
+}
+
+.star-shell.is-person {
+  background:
+    radial-gradient(620px 520px at 50% 48%, rgba(29, 78, 96, 0.26), transparent 72%),
+    linear-gradient(155deg, #07131c, #0b1d27 68%, #091721);
+}
+
+.person-sphere-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.person-sphere-canvas:active {
+  cursor: grabbing;
+}
+
 .star-bg-star {
   fill: rgba(235, 231, 210, 0.3);
+}
+
+.region-3d-floor ellipse,
+.region-3d-floor path {
+  fill: none;
+  stroke: rgba(152, 190, 205, 0.075);
+  stroke-width: 0.7;
+}
+
+.region-3d-floor ellipse:first-child {
+  fill: rgba(19, 55, 68, 0.13);
+  stroke: rgba(200, 164, 92, 0.1);
+}
+
+.region-3d-floor path {
+  stroke-dasharray: 3 10;
+}
+
+.star-hub-shadow {
+  fill: rgba(0, 0, 0, 0.32);
+  filter: blur(1.4px);
+  pointer-events: none;
+}
+
+.star-hub-stem {
+  stroke: rgba(217, 189, 118, 0.32);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.entity-floor-shadow {
+  fill: rgba(0, 0, 0, 0.34);
+  pointer-events: none;
 }
 
 .star-cluster-ring {
@@ -411,6 +521,92 @@
 .decagon-project-link {
   stroke: rgba(217, 189, 118, 0.1);
   stroke-width: 0.55;
+}
+
+.decagon-boundary {
+  fill: rgba(200, 164, 92, 0.018);
+  stroke: rgba(217, 189, 118, 0.36);
+  stroke-width: 1.2;
+  stroke-dasharray: 6 7;
+}
+
+.decagon-floor {
+  fill: rgba(21, 54, 66, 0.14);
+  stroke: rgba(152, 190, 205, 0.1);
+  stroke-width: 0.8;
+}
+
+.decagon-spoke {
+  stroke: rgba(200, 164, 92, 0.14);
+  stroke-width: 0.85;
+  stroke-dasharray: 2 7;
+}
+
+.decagon-center-orbit {
+  fill: none;
+  stroke: rgba(200, 164, 92, 0.09);
+  stroke-width: 1;
+}
+
+.decagon-core-ring {
+  fill: rgba(7, 21, 29, 0.9);
+  stroke: rgba(217, 189, 118, 0.38);
+  stroke-width: 1;
+}
+
+.decagon-core-number {
+  fill: #ead9a8;
+  font-family: var(--serif);
+  font-size: 25px;
+  text-anchor: middle;
+}
+
+.decagon-core-label {
+  fill: rgba(220, 228, 229, 0.5);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-anchor: middle;
+}
+
+.decagon-hub-label-bg {
+  fill: rgba(8, 22, 31, 0.94);
+  stroke: rgba(200, 164, 92, 0.34);
+  stroke-width: 0.8;
+}
+
+.decagon-hub {
+  pointer-events: none;
+}
+
+.decagon-hub .star-hub-core,
+.decagon-hub .decagon-hub-label-bg,
+.decagon-hub .decagon-hub-label,
+.decagon-hub .decagon-hub-count {
+  pointer-events: all;
+}
+
+.decagon-hub .star-hub-ring {
+  pointer-events: none;
+}
+
+.decagon-hub-label {
+  fill: #eadfbe;
+  font-family: KaiTi, STKaiti, 'Kaiti SC', SimSun, serif;
+  font-size: 10px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.decagon-hub-count {
+  fill: rgba(224, 196, 125, 0.72);
+  font-family: SimSun, 'Songti SC', serif;
+  font-size: 8.5px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.decagon-hub.is-dim {
+  opacity: 0.2;
 }
 
 .star-hub {
@@ -565,6 +761,51 @@
 .star-footer b {
   color: #d9bd76;
   font-weight: 500;
+}
+
+.star-legend-strip {
+  position: absolute;
+  z-index: 3;
+  bottom: 34px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - 90px);
+  color: rgba(215, 228, 233, 0.52);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.star-legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 5px currentColor;
+}
+
+.star-legend-separator {
+  width: 1px;
+  height: 12px;
+  margin: 0 3px;
+  background: rgba(200, 164, 92, 0.22);
+}
+
+.star-legend-archive {
+  width: 8px;
+  height: 8px;
+  border: 1px solid #d9bd76;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  border-radius: 50%;
+  transform: rotate(35deg);
+}
+
+.star-legend-gap {
+  width: 8px;
+  height: 8px;
+  border: 1px dashed #d24b45;
+  border-radius: 50%;
 }
 
 .explore-side {
@@ -879,6 +1120,34 @@
   background: #a83a32;
 }
 
+.explore-cross-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.explore-cross-actions button,
+.explore-cross-actions a {
+  display: grid;
+  min-height: 31px;
+  place-items: center;
+  padding: 6px 8px;
+  border: 1px solid #dbc9af;
+  border-radius: 6px;
+  color: #6e5d49;
+  background: #fffaf2;
+  font-size: 10.5px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.explore-cross-actions button:hover,
+.explore-cross-actions a:hover {
+  border-color: #a8322d;
+  color: #8e2f2a;
+}
+
 .explore-legend {
   display: flex;
   flex-direction: column;
@@ -1121,6 +1390,22 @@
     gap: 2px;
   }
 
+  .star-legend-strip {
+    display: none;
+  }
+
+  .explore-category-select {
+    width: 100%;
+  }
+
+  .star-shell.is-region-3d .star-svg {
+    transform: perspective(1200px) rotateX(5deg) scale(1.02);
+  }
+
+  .star-shell.is-project-3d .star-svg {
+    transform: perspective(1200px) rotateX(4deg) scale(1.015);
+  }
+
   .explore-side.is-detail-open {
     right: 6px;
     bottom: 6px;
@@ -1139,7 +1424,8 @@
   }
 
   .explore-lens,
-  .route-card {
+  .route-card,
+  .star-svg {
     transition: none;
   }
 }

@@ -28,15 +28,25 @@ const OUTBOUND_FIELDS = ['名称', '类别', '级别', '批次', '年份', '省�
 /* ---------------- 配置 ---------------- */
 
 export function loadConfig() {
+  let fileConfig = {};
   try {
     if (fs.existsSync(CONFIG_PATH)) {
-      const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-      return { ...DEFAULTS, ...raw };
+      fileConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
     }
   } catch {
     /* 配置损坏时退回默认值 */
   }
-  return { ...DEFAULTS };
+  const enabledValue = process.env.AI_ENABLED;
+  return {
+    ...DEFAULTS,
+    ...fileConfig,
+    baseUrl: process.env.AI_BASE_URL || fileConfig.baseUrl || DEFAULTS.baseUrl,
+    model: process.env.AI_MODEL || fileConfig.model || DEFAULTS.model,
+    apiKey: process.env.AI_API_KEY || fileConfig.apiKey || DEFAULTS.apiKey,
+    enabled: enabledValue === undefined
+      ? fileConfig.enabled ?? DEFAULTS.enabled
+      : !['0', 'false', 'off', 'no'].includes(String(enabledValue).toLowerCase()),
+  };
 }
 
 export function saveConfig(patch) {

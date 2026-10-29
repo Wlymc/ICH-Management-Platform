@@ -1,0 +1,2 @@
+import{j as r,L as s}from"./index-CEpz_U8a.js";import{u as e}from"./usePageMeta-BBK7_NcR.js";function i(){return e({title:"页面不存在",description:"访问的页面不存在或已移动。"}),r.jsx("section",{className:"wrap section",children:r.jsxs("div",{className:"react-error-card",children:[r.jsx("strong",{children:"页面不存在"}),r.jsx("p",{children:"你访问的页面可能已经移动或被删除。"}),r.jsx(s,{className:"btn btn-primary",to:"/",children:"返回首页"})]})})}export{i as default};
+//# sourceMappingURL=NotFoundPage-cWU_a0eq.js.map

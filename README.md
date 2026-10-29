@@ -4,7 +4,22 @@
 
 后端与管理端基于 Node.js 内置模块（`node:http` + `node:sqlite` + `node:crypto` + `node:zlib`），不需要安装数据库。公众端使用 `web/` 中的 React + Vite + TypeScript 工程，构建产物已放入 `public/app/`，日常启动不需要重新构建。
 
-> 平台内置数据为**示例数据**（人物、联系方式、项目描述均为演示用途虚构内容），不代表真实非遗名录。
+> 平台包含国家级名录、公开资料和教学演示数据。具体项目、人物、图片与模型信息以官方名录、来源页和保护单位公布内容为准。
+
+---
+
+## 参赛信息
+
+| 项目 | 内容 |
+| --- | --- |
+| 项目名称 | 非遗数字展馆 / 非遗数字管理平台 |
+| 团队名称 | 遗脉项目团队 |
+| 项目负责人与主要开发 | 王丽莹 |
+| 技术栈 | React 19、TypeScript、Node.js、SQLite、DeepSeek、n8n、model-viewer |
+| 代码仓库 | <https://github.com/Wlymc/ICH-Management-Platform> |
+| 技术文档 | `output/docx/非遗数字展馆_技术文档.docx` |
+
+如赛事报名表还需要填写学校、指导教师、团队成员和联系方式，应以官网报名信息为准；公开仓库不提交个人手机号等敏感信息。
 
 ---
 
@@ -29,14 +44,55 @@ node -v
 
 **方式二：命令行**
 
-```bash
-cd outputs/ich-platform
-node --disable-warning=ExperimentalWarning server.js
+```powershell
+git clone https://github.com/Wlymc/ICH-Management-Platform.git
+cd ICH-Management-Platform
+Copy-Item .env.example .env
+npm start
 ```
 
-也可以用 `npm start`（等价命令）。只有修改公众端 React 源码后才需要进入 `web/` 执行构建。
+Linux/macOS 使用：
+
+```bash
+cp .env.example .env
+npm start
+```
+
+根目录后端不需要执行 `npm install`。只有修改 `web/` 中的 React 源码后，才需要进入 `web/` 安装依赖并重新构建。
 
 首次启动会自动完成：建库建表 → 灌入示例数据 → 生成示例影像文件 → 创建演示账号。
+
+### 环境变量
+
+仓库提供 [`.env.example`](.env.example)。复制为 `.env` 后按需修改，服务端启动时会自动加载：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `PORT` | `3000` | HTTP 服务端口 |
+| `HOST` | `0.0.0.0` | 监听地址 |
+| `AI_ENABLED` | `true` | 是否启用大模型回答 |
+| `AI_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容接口地址 |
+| `AI_MODEL` | `deepseek-chat` | 模型名称 |
+| `AI_API_KEY` | 空 | 模型密钥，只能保存在服务端环境变量中 |
+| `N8N_AGENT_ENABLED` | `true` | 是否启用 n8n Agent |
+| `N8N_WEBHOOK_URL` | `http://127.0.0.1:5678/webhook/ich-agent` | n8n Webhook 地址 |
+| `N8N_AGENT_TIMEOUT_MS` | `30000` | Agent 请求超时 |
+| `N8N_WEBHOOK_TOKEN` | 空 | 可选的 Webhook 共享密钥 |
+| `GUEST_AI_LIMIT` | `normal` | 游客 AI 限流档位 |
+| `PLAYWRIGHT_BASE_URL` | `http://127.0.0.1:3000/` | 前端端到端测试地址 |
+
+> `.env`、`.env.local`、`data/ai-config.json` 和 `data/n8n-agent.json` 均不得提交到公开仓库。
+
+### 依赖清单
+
+| 模块 | 依赖 | 说明 |
+| --- | --- | --- |
+| Node.js 服务 | Node.js 内置模块 | `node:http`、`node:sqlite`、`node:crypto`、`node:zlib`，无第三方运行时依赖 |
+| React 公众端 | React 19、React Router 6、TanStack Query 5、Zustand 5 | 源码位于 `web/`，构建产物位于 `public/app/` |
+| React 构建 | Vite 7、TypeScript 5 | 仅在重新构建公众端时需要 |
+| 测试 | Vitest、Playwright | 前端单元测试与端到端测试 |
+| AI 编排 | n8n、DeepSeek OpenAI 兼容接口 | n8n 运行在服务端，浏览器不直接访问 |
+| 三维展示 | model-viewer、GLB/GLTF | 本地托管，不依赖外部 CDN |
 
 ### 访问地址
 
@@ -48,9 +104,12 @@ node --disable-warning=ExperimentalWarning server.js
 
 端口被占用时可更换：
 
-```bash
-set PORT=3001 && node --disable-warning=ExperimentalWarning server.js
+```powershell
+$env:PORT=3001
+npm start
 ```
+
+Linux/macOS 使用 `PORT=3001 npm start`。
 
 ### 演示账号
 
@@ -203,7 +262,7 @@ cd <项目目录>
 node --disable-warning=ExperimentalWarning scripts/smoke.js
 ```
 
-脚本会以独立端口（默认 3111）启动一个服务实例，自动完成 139 项检查后清理自身创建的测试数据并关闭：
+脚本会以独立端口（默认 3111）启动一个服务实例，自动完成 140 项检查后清理自身创建的测试数据并关闭：
 
 - 门户与静态资源可访问
 - 未登录访问管理端跳转登录页、接口返回 401、错误密码被拒
@@ -223,7 +282,7 @@ node --disable-warning=ExperimentalWarning scripts/smoke.js
 ## 七、常见问题
 
 **Q：启动报「端口 3000 已被占用」？**
-用 `set PORT=3001 && node --disable-warning=ExperimentalWarning server.js` 换端口，或关闭占用程序。
+PowerShell 执行 `$env:PORT=3001; npm start` 换端口，或关闭占用程序。
 
 **Q：看到 `ExperimentalWarning: SQLite is an experimental feature`？**
 `node:sqlite` 在该版本仍标记为实验特性。启动命令已用 `--disable-warning=ExperimentalWarning` 屏蔽该提示；直接 `node server.js` 也能正常运行，只是会打印提示。
@@ -630,3 +689,44 @@ n8n 返回格式：
 Node 服务会验证推荐对象的 `id` 是否真实存在且已发布，再生成 `/projects/:id`、`/inheritors/:id` 或 `/organizations/:id`。n8n 超时、返回错误或 ID 无效时，不会影响网站已有 AI 降级流程。
 
 每个浏览器标签页使用独立 `sessionId`，保存在 `sessionStorage`；“新对话”会生成新的会话 ID。
+
+---
+
+## 十九、AI 技术方案与创新点
+
+### AI 技术选型
+
+- **DeepSeek**：负责中文自然语言回答和内容组织，通过 OpenAI 兼容接口接入。
+- **n8n Agent**：负责查询工具规划、条件分支和多步调用，Webhook 仅由 Node 服务访问。
+- **SQLite FTS5 + LIKE**：负责站内资料检索，短词和复杂查询使用关键词补全兜底。
+- **本地规则引擎**：处理分类、级别、地区、批次等确定性筛选，不消耗模型额度。
+
+AI 请求按“n8n Agent → DeepSeek → 本地 RAG”逐级降级，任意外部服务异常时仍可返回站内资料与来源链接。
+
+### 技术创新
+
+- 本地规则、RAG 与 Agent 混合编排，兼顾成本、准确性和可用性。
+- 模型推荐 ID 由服务端二次校验，避免生成无效或未发布链接。
+- AI 出域字段采用白名单，不发送账号、日志、图片和审核意见。
+- 数字讲解词由已发布字段本地生成，三种版本均不额外调用模型。
+- 元数据驱动管理和 React 类型化 API，减少表单、列表和接口口径不一致。
+
+### 应用创新
+
+- 地域星图、正十边形项目星群和三维人物球形成三种不同的文化遗产探索视角。
+- 3D 器物、数字讲解、语音输入和朗读共同构成数字展馆体验。
+- 项目、传承人、门类、地区与 AI 推荐可以连续跳转，形成可解释的探索路径。
+- 图片、文字、模型和 AI 来源保留核实状态、版权和许可信息。
+
+---
+
+## 二十、参赛交付
+
+| 材料 | 位置 |
+| --- | --- |
+| Word 技术文档 | `output/docx/非遗数字展馆_技术文档.docx` |
+| 环境变量模板 | `.env.example`、`web/.env.example` |
+| 演示账号 | `admin / Admin@123`、`editor / Editor@123` |
+| 自动化测试 | `npm run smoke`、`web/npm run typecheck`、`web/npm run lint`、`web/npm run test` |
+
+提交前应确认 `.env`、`data/`、`uploads/`、`exports/` 和真实 API Key 没有进入 Git；数据库和附件由部署环境单独维护。
