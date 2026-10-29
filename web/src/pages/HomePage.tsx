@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { publicApi } from '../api/client';
 import { ErrorState, LoadingState, SectionHeading } from '../components/common';
@@ -10,11 +10,42 @@ import { usePageMeta } from '../hooks/usePageMeta';
 export default function HomePage() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState('');
+  const [heroVideoReady, setHeroVideoReady] = useState(false);
+  const [allowHeroPlayback, setAllowHeroPlayback] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
+      .connection;
+    return !window.matchMedia('(prefers-reduced-motion: reduce)').matches && !connection?.saveData;
+  });
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
   const query = useQuery({ queryKey: ['home'], queryFn: publicApi.home });
+  const modelsQuery = useQuery({ queryKey: ['model-gallery'], queryFn: publicApi.models });
   usePageMeta({
     title: '非遗数字展馆',
     description: '非遗项目、传承人、文化关系探索、AI 小遗与三维器物展示。',
   });
+
+  useEffect(() => {
+    const video = heroVideoRef.current;
+    if (!video) return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
+      .connection;
+    const applyPlayback = () => {
+      const allowed = !reducedMotion.matches && !connection?.saveData;
+      setAllowHeroPlayback(allowed);
+      if (!allowed) {
+        video.pause();
+        return;
+      }
+      void video.play().catch(() => {
+        setHeroVideoReady(false);
+      });
+    };
+    applyPlayback();
+    reducedMotion.addEventListener?.('change', applyPlayback);
+    return () => reducedMotion.removeEventListener?.('change', applyPlayback);
+  }, []);
 
   if (query.isPending) return <LoadingState label="正在点亮非遗门户…" />;
   if (query.isError) return <ErrorState error={query.error} />;
@@ -23,6 +54,28 @@ export default function HomePage() {
   return (
     <>
       <section className="hero react-home-hero">
+        <div className="hero-video-layer" aria-hidden="true">
+          <video
+            ref={heroVideoRef}
+            className={heroVideoReady ? 'is-ready' : ''}
+            autoPlay={allowHeroPlayback}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            tabIndex={-1}
+            disablePictureInPicture
+            onCanPlay={() => setHeroVideoReady(true)}
+            onError={() => setHeroVideoReady(false)}
+          >
+            <source
+              src="/assets/videos/hero-ich-720.mp4"
+              media="(max-width: 760px)"
+              type="video/mp4"
+            />
+            <source src="/assets/videos/hero-ich-1080.mp4" type="video/mp4" />
+          </video>
+        </div>
         <div className="wrap hero-inner">
           <div>
             <p className="hero-eyebrow">非物质文化遗产 · 数字资源平台</p>
@@ -65,6 +118,24 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="wrap model-entry-strip">
+        <div className="model-entry-mark" aria-hidden="true">
+          3D
+        </div>
+        <div className="model-entry-copy">
+          <span>DIGITAL OBJECTS</span>
+          <strong>三维数字器物馆</strong>
+          <p>
+            {modelsQuery.data
+              ? `${modelsQuery.data.stats.projects} 个非遗项目、${modelsQuery.data.stats.models} 个模型，支持旋转、缩放与全屏查看。`
+              : '从器物细节进入非遗技艺，查看可旋转、缩放的三维模型。'}
+          </p>
+        </div>
+        <Link className="btn btn-primary model-entry-link" to="/models">
+          浏览全部三维器物 →
+        </Link>
       </section>
 
       <section className="wrap section react-ai-home">

@@ -1,11 +1,75 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ModelAsset } from '../types';
 
-export function Model3D({ models }: { models: ModelAsset[] }) {
+function ToolIcon({ name }: { name: 'rotate' | 'plus' | 'minus' | 'reset' | 'fullscreen' }) {
+  const common = {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.6,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+    focusable: false,
+  };
+  switch (name) {
+    case 'rotate':
+      return (
+        <svg {...common}>
+          <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+          <path d="M20 4v4h-4" />
+        </svg>
+      );
+    case 'plus':
+      return (
+        <svg {...common}>
+          <circle cx="11" cy="11" r="7" />
+          <path d="M11 8.5v5M8.5 11h5" />
+          <path d="m16.5 16.5 3 3" />
+        </svg>
+      );
+    case 'minus':
+      return (
+        <svg {...common}>
+          <circle cx="11" cy="11" r="7" />
+          <path d="M8.5 11h5" />
+          <path d="m16.5 16.5 3 3" />
+        </svg>
+      );
+    case 'reset':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="7" />
+          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+        </svg>
+      );
+    case 'fullscreen':
+      return (
+        <svg {...common}>
+          <path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4" />
+        </svg>
+      );
+  }
+}
+
+export function Model3D({
+  models,
+  compact = false,
+  autoLoad = false,
+  showModelList = true,
+  museum = false,
+}: {
+  models: ModelAsset[];
+  compact?: boolean;
+  autoLoad?: boolean;
+  showModelList?: boolean;
+  museum?: boolean;
+}) {
   const viewerRef = useRef<ModelViewerElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [selected, setSelected] = useState(models[0]);
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(autoLoad);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [autoRotate, setAutoRotate] = useState(false);
@@ -54,15 +118,19 @@ export function Model3D({ models }: { models: ModelAsset[] }) {
   };
 
   return (
-    <section className="block project3d-section">
-      <header className="project3d-head">
-        <div>
-          <span className="project3d-kicker">DIGITAL OBJECT · 三维器物</span>
-          <h2 className="section-title">走近器物的空间与细节</h2>
-          <p>按需加载模型，可旋转、缩放并查看作者与许可。</p>
-        </div>
-        <span className="project3d-count">{models.length} 个模型</span>
-      </header>
+    <section
+      className={`block project3d-section${compact ? ' is-compact' : ''}${museum ? ' is-museum' : ''}`}
+    >
+      {!museum ? (
+        <header className="project3d-head">
+          <div>
+            <span className="project3d-kicker">DIGITAL OBJECT · 三维器物</span>
+            <h2 className="section-title">走近器物的空间与细节</h2>
+            <p>按需加载模型，可旋转、缩放并查看作者与许可。</p>
+          </div>
+          <span className="project3d-count">{models.length} 个模型</span>
+        </header>
+      ) : null}
       <div className="project3d-stage" ref={stageRef}>
         <model-viewer
           ref={viewerRef}
@@ -109,13 +177,16 @@ export function Model3D({ models }: { models: ModelAsset[] }) {
           aria-pressed={autoRotate}
           onClick={() => setAutoRotate((value) => !value)}
         >
-          {autoRotate ? '停止旋转' : '自动旋转'}
+          <ToolIcon name="rotate" />
+          <span>{autoRotate ? '停止旋转' : '自动旋转'}</span>
         </button>
         <button type="button" disabled={!loaded} onClick={() => zoom(0.82)}>
-          放大
+          <ToolIcon name="plus" />
+          <span>放大</span>
         </button>
         <button type="button" disabled={!loaded} onClick={() => zoom(1.2)}>
-          缩小
+          <ToolIcon name="minus" />
+          <span>缩小</span>
         </button>
         <button
           type="button"
@@ -128,51 +199,59 @@ export function Model3D({ models }: { models: ModelAsset[] }) {
             viewerRef.current.jumpCameraToGoal?.();
           }}
         >
-          重置
+          <ToolIcon name="reset" />
+          <span>重置</span>
         </button>
         <button
           type="button"
           disabled={!loaded}
           onClick={() => void stageRef.current?.requestFullscreen()}
         >
-          全屏
+          <ToolIcon name="fullscreen" />
+          <span>全屏</span>
         </button>
       </div>
-      <div className="project3d-models">
-        {models.map((model, index) => (
-          <button
-            className={`project3d-model-option${selected.id === model.id ? ' is-active' : ''}`}
-            type="button"
-            key={model.id}
-            onClick={() => load(model)}
-          >
-            <span>{String(index + 1).padStart(2, '0')}</span>
-            <strong>{model.title}</strong>
-            <small>{model.relationLabel}</small>
-          </button>
-        ))}
-      </div>
-      <div className="project3d-meta">
-        <div>
-          <span>{selected.relationLabel}</span>
-          <h3>{selected.title}</h3>
-          <p>{selected.note}</p>
+      {!museum && showModelList ? (
+        <div className="project3d-models">
+          {models.map((model, index) => (
+            <button
+              className={`project3d-model-option${selected.id === model.id ? ' is-active' : ''}`}
+              type="button"
+              key={model.id}
+              onClick={() => load(model)}
+            >
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <strong>{model.title}</strong>
+              <small>{model.relationLabel}</small>
+            </button>
+          ))}
         </div>
-        <div className="project3d-credit">
-          <span>
-            作者：<b>{selected.author}</b>
-          </span>
-          <a href={selected.sourceUrl} target="_blank" rel="noreferrer">
-            模型来源 ↗
-          </a>
-          <a href={selected.licenseUrl} target="_blank" rel="noreferrer">
-            {selected.license}
-          </a>
-        </div>
-      </div>
-      <p className="project3d-disclaimer">
-        三维模型用于教学与展示。部分模型为同类工艺参考器物，具体归属以来源页和官方名录为准。
-      </p>
+      ) : null}
+      {!museum ? (
+        <>
+          <div className="project3d-meta">
+            <div>
+              <span>{selected.relationLabel}</span>
+              <h3>{selected.title}</h3>
+              <p>{selected.note}</p>
+            </div>
+            <div className="project3d-credit">
+              <span>
+                作者：<b>{selected.author}</b>
+              </span>
+              <a href={selected.sourceUrl} target="_blank" rel="noreferrer">
+                模型来源 ↗
+              </a>
+              <a href={selected.licenseUrl} target="_blank" rel="noreferrer">
+                {selected.license}
+              </a>
+            </div>
+          </div>
+          <p className="project3d-disclaimer">
+            三维模型用于教学与展示。部分模型为同类工艺参考器物，具体归属以来源页和官方名录为准。
+          </p>
+        </>
+      ) : null}
     </section>
   );
 }

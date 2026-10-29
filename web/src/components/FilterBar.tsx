@@ -63,6 +63,18 @@ export function FilterBar({ mode, options }: Props) {
           ))}
         </select>
       ) : null}
+      {mode === 'projects' ? (
+        <select
+          name="has_3d"
+          value={searchParams.get('has_3d') || ''}
+          onChange={(event) => update('has_3d', event.target.value)}
+          aria-label="3D模型"
+        >
+          <option value="">全部模型</option>
+          <option value="1">含3D模型</option>
+          <option value="0">不含3D模型</option>
+        </select>
+      ) : null}
       {mode !== 'organizations' ? (
         <select
           name="level_id"

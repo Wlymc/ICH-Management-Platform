@@ -5,6 +5,7 @@ import type {
   HomeData,
   InheritorDetailData,
   InheritorSummary,
+  ModelGalleryData,
   NarrationData,
   Organization,
   OrganizationDetailData,
@@ -67,6 +68,7 @@ export type QueryValues = Record<string, string | number | undefined>;
 
 export const publicApi = {
   home: () => request<HomeData>('/home'),
+  models: () => request<ModelGalleryData>('/models'),
   options: () => request<FilterOptions>('/options'),
   projects: (query: QueryValues = {}) =>
     request<Paginated<ProjectSummary>>(`/projects${queryParams(query)}`),

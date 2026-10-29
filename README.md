@@ -132,7 +132,7 @@ Linux/macOS 使用 `PORT=3001 npm start`。
 
 ### 公众门户（面向游客，响应式）
 
-- **首页**：平台检索入口、十大门类导航、精选推荐、传承人故事、探访体验点、按地区逛非遗、名录级别分布、数字影像墙
+- **首页**：非遗视频 Hero 背景、平台检索入口、十大门类导航、精选推荐、传承人故事、探访体验点、按地区逛非遗、名录级别分布、数字影像墙
 - **逛非遗**（`/projects`）：按类别 / 级别 / 地区 / 关键词筛选，卡片式浏览，项目详情含历史渊源、技艺特征、传承谱系、代表性传承人、影像画廊、视频内嵌
 - **传承人**（`/inheritors`）：传承人列表与个人详情，含从艺经历、技艺特点、荣誉、代表项目
 - **探访体验点**（`/organizations`）：可对外开放的传习所与展示馆，提供**开放时间、详细地址、预约电话、联系人、交通提示、可参与体验项目**
@@ -251,7 +251,7 @@ ich-platform/
 
 统一响应 `{ok, data, error}`；列表统一返回 `{page, pageSize, total, totalPages, items}`。
 
-主要接口：公众端使用 `/api/public/home|projects|inheritors|organizations|explore|ai/*`；管理端使用 `/api/auth/*`、`/api/projects|inheritors|organizations`（CRUD，含 `/{id}/submit`、`/{id}/review`、`/bulk`）、`/api/attachments`、`/api/upload`、`/api/dict/{kind}`、`/api/users`、`/api/import/{resource}`、`/api/export/{resource}.{xlsx|csv}`、`/api/template/{resource}.csv`、`/api/stats/dashboard`、`/api/history/{type}/{id}`。
+主要接口：公众端使用 `/api/public/home|projects|inheritors|organizations|explore|models|ai/*`；管理端使用 `/api/auth/*`、`/api/projects|inheritors|organizations`（CRUD，含 `/{id}/submit`、`/{id}/review`、`/bulk`）、`/api/attachments`、`/api/upload`、`/api/dict/{kind}`、`/api/users`、`/api/import/{resource}`、`/api/export/{resource}.{xlsx|csv}`、`/api/template/{resource}.csv`、`/api/stats/dashboard`、`/api/history/{type}/{id}`。
 
 ---
 
@@ -578,6 +578,17 @@ npm run ai:eval -- --base-url https://api.deepseek.com --model deepseek-chat --a
 
 输出包含每题的通过情况、判定依据、耗时、降级标记、回答字数与 token 用量，最后给出分类通过率与总计。
 
+## 十五、首页视频背景
+
+首页 Hero 使用本地 H.264 MP4 背景视频，静音自动循环并覆盖深色渐变遮罩；手机加载 720p 版本，桌面加载 1080p 版本。系统开启“减少动画”时视频会暂停，加载失败时自动回退到原有渐变背景。
+
+素材位置：
+
+- `public/videos/hero-ich-1080.mp4`
+- `public/videos/hero-ich-720.mp4`
+
+视频通过 `/assets/videos/*.mp4` 提供，服务端支持 `Range` 分段请求和 `206 Partial Content`。
+
 ## 十六、非遗探索
 
 门户提供统一的「非遗探索」页，以浅色宣纸页面承载深色星群画布。右侧采用可收起的单层档案抽屉，详情与图例通过标签切换，不再叠加占用画布空间。
@@ -637,7 +648,7 @@ npm run ai:eval -- --base-url https://api.deepseek.com --model deepseek-chat --a
 - Vitest、Playwright
 - ESLint、Prettier
 
-当前迁移范围包括首页、项目列表与详情、传承人、探访信息、非遗探索、3D 模型和 AI 小遗。项目、传承人和探访详情在直达刷新时由服务端注入页面标题、描述、Open Graph 与 canonical，React 内部导航继续同步更新这些元信息。
+当前迁移范围包括首页、项目列表与详情、传承人、探访信息、非遗探索、三维器物馆和 AI 小遗。首页 Hero 后只保留“浏览全部三维器物”入口；`/models` 以“瓷都景德镇、古法制瓷工序、千年窑火、传世青花作品”四章故事线组织三维观赏与科普内容，并列出 8 个项目的全部 15 个模型，当前选中模型进入页面即自动加载。项目、传承人和探访详情在直达刷新时由服务端注入页面标题、描述、Open Graph 与 canonical，React 内部导航继续同步更新这些元信息。
 
 旧公众端模板和重复脚本已清理，`/app/*` 兼容地址会重定向到新的根路径页面。启动和构建说明详见 `web/README.md`；构建产物位于 `public/app/`，由现有 Node 服务托管。
 

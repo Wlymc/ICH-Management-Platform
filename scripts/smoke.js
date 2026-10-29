@@ -169,6 +169,32 @@ async function main() {
     check('首页包含平台名称', homeHtml.includes('非遗数字管理平台'));
     const css = await request('/assets/css/app.css');
     check('样式文件可访问', css.status === 200);
+    const cssCacheControl = String(css.headers.get('cache-control') || '');
+    const cssEtag = String(css.headers.get('etag') || '');
+    check(
+      '无指纹 CSS 使用协商缓存头',
+      cssCacheControl.includes('no-cache') && Boolean(cssEtag),
+      `cache-control:${cssCacheControl} etag:${cssEtag}`,
+    );
+    const cssNotModified = await request('/assets/css/app.css', {
+      headers: { 'If-None-Match': cssEtag },
+    });
+    check('无指纹 CSS 支持 304 协商', cssNotModified.status === 304);
+    const heroVideo = await request('/assets/videos/hero-ich-720.mp4', { method: 'HEAD' });
+    check(
+      '首页视频背景资源可用并支持分段传输',
+      heroVideo.status === 200 &&
+        String(heroVideo.headers.get('content-type') || '').includes('video/mp4') &&
+        String(heroVideo.headers.get('accept-ranges') || '').includes('bytes'),
+    );
+    const heroVideoRange = await request('/assets/videos/hero-ich-720.mp4', {
+      headers: { Range: 'bytes=0-1023' },
+    });
+    check(
+      '首页视频支持 Range 206',
+      heroVideoRange.status === 206 &&
+        String(heroVideoRange.headers.get('content-range') || '').startsWith('bytes 0-1023/'),
+    );
     const projectsPage = await request('/projects');
     check('项目列表页可访问', projectsPage.status === 200);
     const reactRoot = await request('/');
@@ -179,6 +205,19 @@ async function main() {
         reactRootHtml.includes('<div id="root"></div>') &&
         reactRootHtml.includes('/app/assets/'),
     );
+    check(
+      'React 无指纹 CSS 自动带版本参数',
+      reactRootHtml.includes('/assets/css/app.css?v=') &&
+        reactRootHtml.includes('/assets/css/model3d.css?v='),
+    );
+    const hashedAssetMatch = reactRootHtml.match(/src="(\/app\/assets\/index-[^"]+\.js)"/);
+    if (hashedAssetMatch) {
+      const hashedAsset = await request(hashedAssetMatch[1]);
+      check(
+        '带指纹构建产物使用长期缓存',
+        String(hashedAsset.headers.get('cache-control') || '').includes('immutable'),
+      );
+    }
     check(
       '公众首页首屏包含平台标题与 SEO 描述',
       reactRootHtml.includes('<title>非遗数字展馆 · 非遗数字管理平台</title>') &&
@@ -191,6 +230,7 @@ async function main() {
       '/inheritors',
       '/inheritors/41',
       '/explore',
+      '/models',
       '/organizations',
     ];
     const publicRouteFailures = [];
@@ -229,6 +269,16 @@ async function main() {
       publicHomeApi.status === 200 &&
         Number(publicHomeApi.payload?.data?.stats?.projects) > 0 &&
         (publicHomeApi.payload?.data?.categories || []).length === 10,
+    );
+    const publicModelsApi = await json('/api/public/models');
+    check(
+      '公众三维器物馆 API 返回 8 个项目与 15 个模型',
+      publicModelsApi.status === 200 &&
+        Number(publicModelsApi.payload?.data?.stats?.projects) === 8 &&
+        Number(publicModelsApi.payload?.data?.stats?.models) === 15 &&
+        (publicModelsApi.payload?.data?.projects || []).every((project) =>
+          Array.isArray(project.models),
+        ),
     );
     const publicProjectApi = await json('/api/public/projects/169');
     check(
@@ -597,6 +647,24 @@ async function main() {
       '公众项目筛选参数生效',
       filteredProjects.status === 200 &&
         filteredProjects.payload?.data?.total === 16,
+    );
+    const projectsWith3d = await json('/api/public/projects?has_3d=1');
+    check(
+      '公众项目可按含 3D 模型筛选',
+      projectsWith3d.status === 200 &&
+        projectsWith3d.payload?.data?.total === 8 &&
+        (projectsWith3d.payload?.data?.items || []).every(
+          (project) => (project.models || []).length > 0,
+        ),
+    );
+    const projectsWithout3d = await json('/api/public/projects?has_3d=0');
+    check(
+      '公众项目可按不含 3D 模型筛选',
+      projectsWithout3d.status === 200 &&
+        projectsWithout3d.payload?.data?.total > 0 &&
+        (projectsWithout3d.payload?.data?.items || []).every(
+          (project) => (project.models || []).length === 0,
+        ),
     );
     const invalidProjectSort = await json('/api/public/projects?sort=certified_year');
     check(

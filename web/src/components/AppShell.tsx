@@ -8,6 +8,7 @@ const NAV = [
   { to: '/projects', label: '逛非遗' },
   { to: '/inheritors', label: '传承人' },
   { to: '/explore', label: '非遗探索' },
+  { to: '/models', label: '三维器物' },
   { to: '/organizations', label: '探访线索' },
 ];
 
@@ -107,6 +108,7 @@ export function AppShell() {
             <NavLink to="/projects">非遗项目</NavLink>
             <NavLink to="/inheritors">传承人</NavLink>
             <NavLink to="/explore">非遗探索</NavLink>
+            <NavLink to="/models">三维器物</NavLink>
             <a href="/admin">管理端登录</a>
           </div>
         </div>

@@ -5,7 +5,7 @@ import { listAttachments } from './service.js';
 import { clamp, paginate, toInt } from './util.js';
 import { buildKnowledgeGraphData } from './knowledge-graph.js';
 import { buildStarMapData } from './star-map.js';
-import { modelsForProject, modelAssetUrl } from './model-assets.js';
+import { MODELS, modelsForProject, modelAssetUrl } from './model-assets.js';
 
 const PROJECT_SELECT = `SELECT t.*, c.name AS category_name, c.code AS category_code,
     c.summary AS category_summary, l.name AS level_name, r.name AS region_name,
@@ -71,6 +71,7 @@ function projectDto(row) {
     licenseUrl: model.licenseUrl,
     sourceUrl: model.sourceUrl,
     note: model.note,
+    featured: Boolean(model.featured),
     url: modelAssetUrl(model),
   }));
   return {
@@ -177,6 +178,8 @@ function attachmentDto(row) {
   };
 }
 
+const PROJECT_IDS_WITH_MODELS = [...new Set(MODELS.map((model) => Number(model.projectId)).filter(Boolean))];
+
 function applyProjectFilters(query) {
   const where = [`t.status = 'published'`];
   const params = [];
@@ -203,6 +206,20 @@ function applyProjectFilters(query) {
     if (ids.length) {
       where.push(`t.region_id IN (${ids.map(() => '?').join(', ')})`);
       params.push(...ids);
+    }
+  }
+  const has3d = String(query.has_3d || '').trim().toLowerCase();
+  if (['1', 'true', 'with'].includes(has3d)) {
+    if (PROJECT_IDS_WITH_MODELS.length) {
+      where.push(`t.id IN (${PROJECT_IDS_WITH_MODELS.map(() => '?').join(', ')})`);
+      params.push(...PROJECT_IDS_WITH_MODELS);
+    } else {
+      where.push('0 = 1');
+    }
+  } else if (['0', 'false', 'without'].includes(has3d)) {
+    if (PROJECT_IDS_WITH_MODELS.length) {
+      where.push(`t.id NOT IN (${PROJECT_IDS_WITH_MODELS.map(() => '?').join(', ')})`);
+      params.push(...PROJECT_IDS_WITH_MODELS);
     }
   }
   if (query.featured === '1') where.push('t.featured = 1');
@@ -467,6 +484,66 @@ export function publicHomeData() {
     categories,
     featuredProjects,
     featuredInheritors,
+  };
+}
+
+export function publicModelGalleryData() {
+  const projectIds = [...new Set(MODELS.map((model) => Number(model.projectId)).filter(Boolean))];
+  const projects = projectIds
+    .map((id) =>
+      get(
+        `${PROJECT_SELECT} WHERE t.id = ? AND t.status = 'published'`,
+        [id],
+      ),
+    )
+    .filter(Boolean)
+    .map((row) => {
+      const project = projectDto(row);
+      const inheritors = all(
+        `SELECT i.id, i.name, l.name AS level_name
+         FROM project_inheritor pi
+         JOIN inheritor i ON i.id = pi.inheritor_id
+         LEFT JOIN heritage_level l ON l.id = i.level_id
+         WHERE pi.project_id = ? AND i.status = 'published'
+         ORDER BY pi.is_representative DESC, i.name
+         LIMIT 4`,
+        [project.id],
+      ).map((item) => ({
+        id: Number(item.id),
+        name: item.name || '',
+        levelName: item.level_name || '',
+      }));
+      return { ...project, inheritors };
+    })
+    .filter((project) => project.models.length > 0);
+
+  const categories = [];
+  const categoryMap = new Map();
+  for (const project of projects) {
+    if (!project.categoryId) continue;
+    if (!categoryMap.has(project.categoryId)) {
+      const item = {
+        id: project.categoryId,
+        name: project.categoryName,
+        projectCount: 0,
+        modelCount: 0,
+      };
+      categoryMap.set(project.categoryId, item);
+      categories.push(item);
+    }
+    const item = categoryMap.get(project.categoryId);
+    item.projectCount += 1;
+    item.modelCount += project.models.length;
+  }
+
+  return {
+    stats: {
+      projects: projects.length,
+      models: projects.reduce((sum, project) => sum + project.models.length, 0),
+      categories: categories.length,
+    },
+    categories,
+    projects,
   };
 }
 

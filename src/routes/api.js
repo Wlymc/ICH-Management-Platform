@@ -75,6 +75,7 @@ import {
   publicExploreData,
   publicFilterOptions,
   publicHomeData,
+  publicModelGalleryData,
   publicVisitGuideData,
 } from '../public-api.js';
 import {
@@ -404,6 +405,10 @@ export async function handleApi(req, res, url, user) {
     }
     if (pathname === '/api/public/home') {
       ok(res, publicHomeData());
+      return true;
+    }
+    if (pathname === '/api/public/models') {
+      ok(res, publicModelGalleryData());
       return true;
     }
     if (pathname === '/api/public/options') {

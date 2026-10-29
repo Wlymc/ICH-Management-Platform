@@ -8,6 +8,7 @@ const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'));
 const InheritorsPage = lazy(() => import('./pages/InheritorsPage'));
 const InheritorDetailPage = lazy(() => import('./pages/InheritorDetailPage'));
 const ExplorePage = lazy(() => import('./pages/ExplorePage'));
+const ModelGalleryPage = lazy(() => import('./pages/ModelGalleryPage'));
 const OrganizationsPage = lazy(() => import('./pages/OrganizationsPage'));
 const OrganizationDetailPage = lazy(() => import('./pages/OrganizationDetailPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="inheritors" element={<InheritorsPage />} />
         <Route path="inheritors/:id" element={<InheritorDetailPage />} />
         <Route path="explore" element={<ExplorePage />} />
+        <Route path="models" element={<ModelGalleryPage />} />
         <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="organizations/:id" element={<OrganizationDetailPage />} />
         <Route path="*" element={<NotFoundPage />} />

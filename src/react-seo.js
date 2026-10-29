@@ -1,4 +1,4 @@
-import { BRAND } from './config.js';
+import { ASSET_VERSION, BRAND } from './config.js';
 import {
   getPublicInheritor,
   getPublicOrganization,
@@ -31,6 +31,9 @@ function routeMeta(pathname, origin) {
   } else if (normalized === '/explore') {
     title = '非遗探索';
     description = '通过地域星图、项目关系和文化谱系，探索非遗项目之间以及项目与传承人之间的联系。';
+  } else if (normalized === '/models') {
+    title = '三维器物';
+    description = '集中浏览非遗项目中的可交互三维模型，按项目与门类筛选并查看器物细节。';
   } else if (normalized === '/organizations') {
     title = '探访线索';
     description = '按地区查看国家级非遗分布、传承人线索与已核实保护单位，规划实地探访路线。';
@@ -100,6 +103,14 @@ function replaceTag(html, pattern, replacement) {
   return pattern.test(html) ? html.replace(pattern, replacement) : html.replace('</head>', `${replacement}\n</head>`);
 }
 
+function versionStaticAssets(html) {
+  const version = encodeURIComponent(ASSET_VERSION);
+  return html.replace(
+    /((?:href|src)=["'])(\/(?:assets\/(?:css|js)\/[^"'?]+|app\/vendor\/[^"'?]+))(?:\?[^"']*)?(["'])/gi,
+    `$1$2?v=${version}$3`,
+  );
+}
+
 export function renderReactSeo(template, { pathname, origin }) {
   const meta = routeMeta(pathname, origin);
   let html = replaceTag(
@@ -137,5 +148,5 @@ export function renderReactSeo(template, { pathname, origin }) {
     /<link\s+rel="canonical"[^>]*>/i,
     `<link rel="canonical" href="${h(meta.canonical)}" />`,
   );
-  return html;
+  return versionStaticAssets(html);
 }

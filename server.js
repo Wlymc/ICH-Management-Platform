@@ -14,7 +14,48 @@ seedAll();
 pruneSessions();
 setInterval(pruneSessions, 30 * 60 * 1000).unref();
 
-function serveFrom(res, baseDir, relativePath, { download = false } = {}) {
+function staticEtag(stat) {
+  return `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+}
+
+function parseByteRange(header, size) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(String(header || '').trim());
+  if (!match || (!match[1] && !match[2])) return null;
+  let start;
+  let end;
+  if (!match[1]) {
+    const suffixLength = Number(match[2]);
+    if (!Number.isInteger(suffixLength) || suffixLength <= 0) return { invalid: true };
+    start = Math.max(0, size - suffixLength);
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] ? Number(match[2]) : size - 1;
+  }
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start >= size || end < start) {
+    return { invalid: true };
+  }
+  end = Math.min(end, size - 1);
+  return { start, end, length: end - start + 1 };
+}
+
+function requestIsFresh(req, etag, lastModified) {
+  const ifNoneMatch = String(req.headers['if-none-match'] || '').trim();
+  if (ifNoneMatch) {
+    return ifNoneMatch === '*' || ifNoneMatch.split(',').some((value) => value.trim() === etag);
+  }
+  const ifModifiedSince = Date.parse(String(req.headers['if-modified-since'] || ''));
+  if (!Number.isFinite(ifModifiedSince)) return false;
+  return Math.floor(lastModified.getTime() / 1000) <= Math.floor(ifModifiedSince / 1000);
+}
+
+function serveFrom(
+  req,
+  res,
+  baseDir,
+  relativePath,
+  { download = false, cacheControl = 'no-cache' } = {},
+) {
   const safeRelative = relativePath
     .split('/')
     .filter((part) => part && part !== '.' && part !== '..')
@@ -31,11 +72,16 @@ function serveFrom(res, baseDir, relativePath, { download = false } = {}) {
   }
   const stat = fs.statSync(target);
   const mime = mimeFor(target);
+  const etag = staticEtag(stat);
+  const lastModified = new Date(stat.mtimeMs);
   const headers = {
     'Content-Type': mime,
     'Content-Length': stat.size,
-    'Cache-Control': 'public, max-age=86400',
+    'Cache-Control': cacheControl,
+    ETag: etag,
+    'Last-Modified': lastModified.toUTCString(),
     'X-Content-Type-Options': 'nosniff',
+    'Accept-Ranges': 'bytes',
   };
   if (download) {
     headers['Content-Disposition'] = `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(target))}`;
@@ -43,7 +89,36 @@ function serveFrom(res, baseDir, relativePath, { download = false } = {}) {
   if (mime === 'image/svg+xml') {
     headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'";
   }
+  if (requestIsFresh(req, etag, lastModified)) {
+    delete headers['Content-Length'];
+    res.writeHead(304, headers);
+    res.end();
+    return;
+  }
+  const range = req.headers.range ? parseByteRange(req.headers.range, stat.size) : null;
+  if (range?.invalid) {
+    delete headers['Content-Length'];
+    headers['Content-Range'] = `bytes */${stat.size}`;
+    res.writeHead(416, headers);
+    res.end();
+    return;
+  }
+  if (range) {
+    headers['Content-Range'] = `bytes ${range.start}-${range.end}/${stat.size}`;
+    headers['Content-Length'] = range.length;
+    res.writeHead(206, headers);
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
+    fs.createReadStream(target, { start: range.start, end: range.end }).pipe(res);
+    return;
+  }
   res.writeHead(200, headers);
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
   fs.createReadStream(target).pipe(res);
 }
 
@@ -91,11 +166,18 @@ const server = http.createServer(async (req, res) => {
         fs.existsSync(requested) &&
         fs.statSync(requested).isFile()
       ) {
-        serveFrom(res, appRoot, relative || 'index.html');
+        const immutableAsset =
+          pathname.startsWith('/app/assets/') &&
+          /[-.][A-Za-z0-9_-]{8,}\.(?:js|css|map|woff2?|png|jpe?g|webp|svg)$/.test(pathname);
+        serveFrom(req, res, appRoot, relative || 'index.html', {
+          cacheControl: immutableAsset
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache',
+        });
         return;
       }
       if (!path.extname(relative)) {
-        serveFrom(res, appRoot, 'index.html');
+        serveFrom(req, res, appRoot, 'index.html', { cacheControl: 'no-cache' });
         return;
       }
       sendNotFound(res);
@@ -113,15 +195,21 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (pathname.startsWith('/assets/')) {
-      serveFrom(res, PATHS.publicDir, pathname.slice('/assets/'.length));
+      serveFrom(req, res, PATHS.publicDir, pathname.slice('/assets/'.length), {
+        cacheControl: 'no-cache',
+      });
       return;
     }
     if (pathname.startsWith('/uploads/')) {
-      serveFrom(res, PATHS.uploads, pathname.slice('/uploads/'.length));
+      serveFrom(req, res, PATHS.uploads, pathname.slice('/uploads/'.length), {
+        cacheControl: 'public, max-age=86400',
+      });
       return;
     }
     if (pathname.startsWith('/models3d/')) {
-      serveFrom(res, PATHS.models3d, pathname.slice('/models3d/'.length));
+      serveFrom(req, res, PATHS.models3d, pathname.slice('/models3d/'.length), {
+        cacheControl: 'public, max-age=86400',
+      });
       return;
     }
     if (pathname === '/favicon.ico') {
@@ -147,6 +235,7 @@ const server = http.createServer(async (req, res) => {
     const isReactRoute =
       pathname === '/' ||
       pathname === '/explore' ||
+      pathname === '/models' ||
       pathname === '/projects' ||
       pathname.startsWith('/projects/') ||
       pathname === '/inheritors' ||

@@ -16,6 +16,7 @@ export interface ModelAsset {
   licenseUrl: string;
   sourceUrl: string;
   note: string;
+  featured: boolean;
   url: string;
 }
 
@@ -152,6 +153,29 @@ export interface VisitGuideData {
     inheritorTotal: number;
     verifiedOrganizationTotal: number;
   };
+}
+
+export interface ModelGalleryProject extends ProjectSummary {
+  inheritors: Array<{
+    id: number;
+    name: string;
+    levelName: string;
+  }>;
+}
+
+export interface ModelGalleryData {
+  stats: {
+    projects: number;
+    models: number;
+    categories: number;
+  };
+  categories: Array<{
+    id: number;
+    name: string;
+    projectCount: number;
+    modelCount: number;
+  }>;
+  projects: ModelGalleryProject[];
 }
 
 export interface HomeData {

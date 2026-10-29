@@ -17,7 +17,7 @@ export default function ProjectsPage() {
   });
   usePageMeta({
     title: '逛非遗',
-    description: '按类别、级别、地区与年份浏览已发布非物质文化遗产项目。',
+    description: '按类别、级别、地区、年份与三维模型浏览已发布非物质文化遗产项目。',
   });
 
   return (
@@ -30,7 +30,7 @@ export default function ProjectsPage() {
             <span>逛非遗</span>
           </nav>
           <h1 className="page-title">非遗项目</h1>
-          <p className="page-sub">按类别、级别与地区筛选已发布非遗项目。</p>
+          <p className="page-sub">按类别、级别、地区与三维模型筛选已发布非遗项目。</p>
         </div>
       </section>
       <section className="wrap section">
