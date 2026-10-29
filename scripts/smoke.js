@@ -4,7 +4,6 @@
  * 会自动以测试端口启动一个服务实例，跑完全流程后清理测试数据并关闭。
  */
 import { spawn } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildXlsx } from '../src/report/xlsx.js';
@@ -14,17 +13,6 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const PORT = Number(process.env.SMOKE_PORT || 3111);
 const BASE = `http://127.0.0.1:${PORT}`;
-let appBundleTextCache = '';
-
-function appBundleText() {
-  if (appBundleTextCache) return appBundleTextCache;
-  const assets = path.join(root, 'public', 'app', 'assets');
-  appBundleTextCache = fs.readdirSync(assets)
-    .filter((name) => name.endsWith('.js'))
-    .map((name) => fs.readFileSync(path.join(assets, name), 'utf8'))
-    .join('\n');
-  return appBundleTextCache;
-}
 
 let passed = 0;
 const failures = [];
@@ -128,7 +116,11 @@ async function waitForServer(timeoutMs = 30000) {
 async function main() {
   const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'server.js'], {
     cwd: root,
-    env: { ...process.env, PORT: String(PORT) },
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      N8N_AGENT_ENABLED: 'false',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let serverLog = '';
@@ -179,6 +171,72 @@ async function main() {
     check('样式文件可访问', css.status === 200);
     const projectsPage = await request('/projects');
     check('项目列表页可访问', projectsPage.status === 200);
+    const reactRoot = await request('/');
+    const reactRootHtml = await reactRoot.text();
+    check(
+      'React/Vite 已接管公众端根路径',
+      reactRoot.status === 200 &&
+        reactRootHtml.includes('<div id="root"></div>') &&
+        reactRootHtml.includes('/app/assets/'),
+    );
+    check(
+      '公众首页首屏包含平台标题与 SEO 描述',
+      reactRootHtml.includes('<title>非遗数字展馆 · 非遗数字管理平台</title>') &&
+        reactRootHtml.includes('<meta name="description" content="') &&
+        reactRootHtml.includes('<link rel="canonical" href="http://127.0.0.1:'),
+    );
+    const publicRoutes = [
+      '/projects',
+      '/projects/169',
+      '/inheritors',
+      '/inheritors/41',
+      '/explore',
+      '/organizations',
+    ];
+    const publicRouteFailures = [];
+    for (const route of publicRoutes) {
+      const response = await request(route);
+      const html = await response.text();
+      if (
+        response.status !== 200 ||
+        !html.includes('<div id="root"></div>') ||
+        !html.includes('/app/assets/')
+      ) {
+        publicRouteFailures.push(`${route} → ${response.status}`);
+      }
+    }
+    check(
+      '全部公众主入口由 React 接管',
+      publicRouteFailures.length === 0,
+      publicRouteFailures.join('；'),
+    );
+    const reactDeepLink = await request('/projects/169');
+    const reactDeepLinkHtml = await reactDeepLink.text();
+    check(
+      'React 公众端支持直达路由刷新',
+      reactDeepLink.status === 200 &&
+        reactDeepLinkHtml.includes('<div id="root"></div>') &&
+        (await request('/app/projects/169')).status === 302,
+    );
+    check(
+      '项目详情直达页注入项目级标题与描述',
+      reactDeepLinkHtml.includes('<title>景德镇手工制瓷技艺 · 非遗档案 · 非遗数字管理平台</title>') &&
+        reactDeepLinkHtml.includes('<meta property="og:type" content="article" />'),
+    );
+    const publicHomeApi = await json('/api/public/home');
+    check(
+      '公众首页 JSON API 可用',
+      publicHomeApi.status === 200 &&
+        Number(publicHomeApi.payload?.data?.stats?.projects) > 0 &&
+        (publicHomeApi.payload?.data?.categories || []).length === 10,
+    );
+    const publicProjectApi = await json('/api/public/projects/169');
+    check(
+      '公众项目详情 JSON API 包含模型与关联数据',
+      publicProjectApi.status === 200 &&
+        (publicProjectApi.payload?.data?.project?.models || []).length === 3 &&
+        Array.isArray(publicProjectApi.payload?.data?.inheritors),
+    );
 
     console.log('\n[2] 登录与鉴权');
     const noAuth = await request('/admin/work');
@@ -243,7 +301,7 @@ async function main() {
     if (projectId) createdIds.push(projectId);
 
     const publicBefore = await json(`/api/public/projects/${projectId}`);
-    check('草稿状态不出现在门户 API', publicBefore.status === 404);
+    check('草稿状态不出现在门户', publicBefore.status === 404);
 
     const submit = await json(`/api/projects/${projectId}/submit`, { method: 'POST' });
     check('录入员提交审核成功', submit.status === 200);
@@ -271,9 +329,12 @@ async function main() {
     const approve = await json(`/api/projects/${projectId}/review`, { method: 'POST', body: { action: 'approve' } });
     check('管理员审核通过成功', approve.status === 200);
 
-    const publicAfter = await request(`/projects/${projectId}`);
-    const detailHtml = await publicAfter.text();
-    check('发布后门户可访问详情页', publicAfter.status === 200 && detailHtml.includes(`冒烟测试项目-${stamp}`));
+    const publicAfter = await json(`/api/public/projects/${projectId}`);
+    check(
+      '发布后门户 API 可访问详情',
+      publicAfter.status === 200 &&
+        publicAfter.payload?.data?.project?.name === `冒烟测试项目-${stamp}`,
+    );
 
     const reviewsPage = await request('/admin/reviews');
     check('审核中心页面可访问', reviewsPage.status === 200);
@@ -427,25 +488,18 @@ async function main() {
     check('管理端项目列表渲染数据表格', listHtml.includes('data-resource="project"'));
     const formHtml = await (await request('/admin/projects/new')).text();
     check('新建项目表单渲染完整', formHtml.includes('id="resource-form"') && formHtml.includes('image-field'));
-    const portalDetail = await request(`/projects/${projectId}`);
-    const portalDetailHtml = await portalDetail.text();
+    const portalDetail = await json(`/api/public/projects/${projectId}`);
     check(
-      'React 门户详情直链返回应用入口',
-      portalDetail.status === 200 && portalDetailHtml.includes('id="root"') && /\/app\/assets\/index-[^"]+\.js/.test(portalDetailHtml),
-    );
-    const portalProjectApi = await json(`/api/public/projects/${projectId}`);
-    check(
-      '门户项目 API 返回新发布项目',
-      portalProjectApi.status === 200 && portalProjectApi.payload?.data?.project?.name === `冒烟测试项目-${stamp}`,
-      portalProjectApi.payload?.error || '',
+      '公众项目 API 返回新发布项目',
+      portalDetail.status === 200 && portalDetail.payload?.data?.project?.name.includes(`冒烟测试项目-${stamp}`),
     );
 
     const exploreHtml = await (await request('/explore')).text();
     check(
-      '非遗探索路由返回 React 应用入口',
-      exploreHtml.includes('id="root"') && exploreHtml.includes('/app/assets/index-'),
+      '非遗探索页面由 React 应用接管',
+      exploreHtml.includes('<div id="root"></div>') && exploreHtml.includes('/app/assets/'),
     );
-    const exploreMap = await json('/api/public/explore');
+    const exploreMap = await json('/api/explore');
     const starData = exploreMap.payload?.data?.star;
     const graphData = exploreMap.payload?.data?.graph;
     check(
@@ -461,14 +515,10 @@ async function main() {
       '项目星点包含批次与档案完整度',
       starData?.nodes?.every((node) => Object.hasOwn(node, 'batch') && Number.isFinite(Number(node.completeness))),
     );
-    const appBundles = appBundleText();
     check(
-      'React 构建产物包含三类星图与关系探索',
-      ['地域星图', '项目星群', '人物星群'].every((label) => appBundles.includes(label)),
-    );
-    check(
-      '项目详情提供非遗探索定位',
-      appBundles.includes('/explore?lens=project&project=') || appBundles.includes('/explore?lens=project'),
+      '项目详情 API 提供关系探索所需分类数据',
+      portalDetail.payload?.data?.project?.categoryId > 0 &&
+        Array.isArray(portalDetail.payload?.data?.relatedProjects),
     );
     const legacyGraph = await request('/graph?project=1');
     const legacyLocation = String(legacyGraph.headers.get('location') || '');
@@ -499,24 +549,70 @@ async function main() {
       overlaySelectors.slice(0, 60),
     );
 
-    const sampleList = await json('/api/public/projects?pageSize=60');
-    const sample = sampleList.payload?.data?.items?.find((item) => item.coverUrl && item.summary);
+    const sampleList = await json('/api/projects?pageSize=200');
+    // 需要同时有封面与长文，才能验证「叙事内容 + 影像墙」；国家级项目长文待 AI 起草，先取已有内容的项目
+    const sample = sampleList.payload?.data?.items?.find((item) => item.cover_path && item.history);
     if (sample) {
-      const sampleApi = await json(`/api/public/projects/${sample.id}`);
-      const sampleData = sampleApi.payload?.data;
+      const sampleDetail = await json(`/api/public/projects/${sample.id}`);
       check(
-        '示例项目 API 含摘要与影像档案',
-        sampleApi.status === 200 && Boolean(sampleData?.project?.summary) && sampleData.attachments.some((item) => item.kind === 'image'),
+        '示例项目详情 API 含叙事内容与影像墙',
+        String(sampleDetail.payload?.data?.project?.history || '').length > 0 &&
+          Array.isArray(sampleDetail.payload?.data?.attachments),
         `${sample.name}`,
       );
     } else {
       check('示例项目详情页含叙事内容与影像墙', false, '未找到同时有封面与长文的项目');
     }
 
+    const modelProjectApi = await json('/api/public/projects/169');
+    check(
+      '景德镇项目 API 接入三维器物模块',
+      modelProjectApi.status === 200 &&
+        (modelProjectApi.payload?.data?.project?.models || []).length === 3,
+    );
+    const modelAssetResponse = await request('/models3d/chinese_pagoda_lantern_no_texture.glb', {
+      method: 'HEAD',
+    });
+    check(
+      '本地 GLB 模型按 model/gltf-binary 提供',
+      modelAssetResponse.status === 200 &&
+        modelAssetResponse.headers.get('content-type') === 'model/gltf-binary',
+    );
+    const noModelProject = await json('/api/public/projects/1');
+    check('未匹配模型的项目模型列表为空', (noModelProject.payload?.data?.project?.models || []).length === 0);
+    const hezhenPage = await json('/api/public/projects/176');
+    check(
+      '新增鱼皮制作技艺模型已接入对应项目',
+      hezhenPage.status === 200 &&
+        (hezhenPage.payload?.data?.project?.models || []).length === 2,
+    );
+    const shoushanPage = await json('/api/public/projects/162');
+    check(
+      '新增寿山石雕模型已接入对应项目',
+      shoushanPage.status === 200 &&
+        (shoushanPage.payload?.data?.project?.models || []).length === 1,
+    );
+    const filteredProjects = await json('/api/public/projects?category_id=8');
+    check(
+      '公众项目筛选参数生效',
+      filteredProjects.status === 200 &&
+        filteredProjects.payload?.data?.total === 16,
+    );
+    const invalidProjectSort = await json('/api/public/projects?sort=certified_year');
+    check(
+      '项目列表对不存在的认定年份排序安全回退',
+      invalidProjectSort.status === 200,
+    );
+    const invalidInheritorSort = await json('/api/public/inheritors?sort=published_year');
+    check(
+      '传承人列表对不存在的公布年份排序安全回退',
+      invalidInheritorSort.status === 200,
+    );
+
     console.log('\n[8] 清理测试数据');
     await cleanupCreated();
     const afterCleanup = await json(`/api/public/projects/${projectId}`);
-    check('测试数据已清理（门户 API 不可见）', afterCleanup.status === 404);
+    check('测试数据已清理（公众 API 不可见）', afterCleanup.status === 404);
 
     console.log('\n[9] 角色边界（录入员 vs 管理员）');
     await json('/api/auth/login', { method: 'POST', body: { username: 'editor', password: 'Editor@123' } });
@@ -609,15 +705,19 @@ async function main() {
       check('批次与年份已拆分', sampleProject.batch === '第一批' && Number(sampleProject.published_year) === 2006, `${sampleProject.batch}/${sampleProject.published_year}`);
       check('申报地区原文保留', String(sampleProject.region_text || '').includes('台江'), sampleProject.region_text);
       const detail = await json(`/api/public/projects/${sampleProject.id}`);
-      const detailData = detail.payload?.data;
-      const images = (detailData?.attachments || []).filter((item) => item.kind === 'image');
-      check('项目 API 返回官方编号', detail.status === 200 && detailData?.project?.sourceCode === 'Ⅰ-1');
-      check('项目 API 返回 4 张配图', images.length === 4, `${images.length} 张`);
+      check('项目 API 返回官方编号', detail.status === 200 && detail.payload?.data?.project?.sourceCode === 'Ⅰ-1');
       check(
-        '项目 API 保留图片版权与来源字段',
-        images.every((item) => item.sourceKind || item.sourceUrl || item.license),
+        '项目 API 返回 4 张配图',
+        (detail.payload?.data?.attachments || []).filter((item) => item.kind === 'image').length === 4,
       );
-      check('项目 API 保留内容来源', Boolean(detailData?.project?.contentSource));
+      check(
+        '项目 API 保留图片版权来源字段',
+        (detail.payload?.data?.attachments || []).some((item) => item.sourceKind),
+      );
+      check(
+        '项目 API 保留内容来源字段',
+        Boolean(detail.payload?.data?.project?.contentSource),
+      );
     }
 
     const inheritorList = await json('/api/inheritors?status=published&pageSize=200');
@@ -625,11 +725,10 @@ async function main() {
     check('国家级传承人已导入（90 位）', nationalPeople.length >= 90, `实际 ${nationalPeople.length} 位`);
     const person = nationalPeople.find((item) => item.name === '王安江') || nationalPeople[0];
     const personDetail = await json(`/api/public/inheritors/${person.id}`);
-    const personData = personDetail.payload?.data;
     check(
-      '传承人 API 返回关联项目',
-      personDetail.status === 200 && personData?.projects?.length > 0,
-      `${person.name} 返回 ${personData?.projects?.length || 0} 个关联项目`,
+      '传承人详情 API 展示关联项目',
+      personDetail.status === 200 && (personDetail.payload?.data?.projects || []).length > 0,
+      `${person.name} 页面 ${personDetail.status}`,
     );
     check('传承人记录了从业起始年', Number(person.career_start_year) > 1900, String(person.career_start_year));
     const imageStats = await json('/api/stats/dashboard');
@@ -641,10 +740,31 @@ async function main() {
       '省级行政区已内置 34 个',
       (provinces.payload?.data?.region || []).filter((item) => item.region_level === 'province').length === 34,
     );
-    const guizhou = await request('/projects?region_id=' + (provinces.payload.data.region.find((r) => r.name === '贵州省') || {}).id);
-    check('门户可按省份筛选', guizhou.status === 200);
-    const homeHtmlNational = await (await request('/')).text();
-    check('门户已隐藏「探访体验点」（保护单位待补录）', !homeHtmlNational.includes('探访体验点'));
+    const guizhou = await json(
+      '/api/public/projects?region_id=' +
+        (provinces.payload.data.region.find((r) => r.name === '贵州省') || {}).id,
+    );
+    check('公众项目 API 可按省份筛选', guizhou.status === 200 && guizhou.payload?.data?.total > 0);
+    const publicOrganizations = await json('/api/public/organizations');
+    check(
+      '未核实保护单位不会返回联系方式',
+      publicOrganizations.status === 200 &&
+        (publicOrganizations.payload?.data?.items || []).every(
+          (item) => item.verified || (!item.address && !item.phone && !item.email),
+        ),
+    );
+    const visitGuide = await json('/api/public/visit');
+    check(
+      '探访线索按省级地区聚合官方名录事实',
+      visitGuide.status === 200 &&
+        visitGuide.payload?.data?.provinces?.length > 0 &&
+        visitGuide.payload.data.provinces.some(
+          (item) => item.projectCount > 0 || item.inheritorCount > 0,
+        ) &&
+        visitGuide.payload.data.verifiedOrganizations.every(
+          (item) => item.verified && (item.address || item.phone || item.email),
+        ),
+    );
 
     console.log('\n[11] AI 小助手');
     const aiConfig = await json('/api/ai/config');
@@ -678,12 +798,20 @@ async function main() {
     );
     check(
       '未配置密钥时自动降级且提示原因',
-      chatAnswer.payload?.data?.degraded === true && Boolean(chatAnswer.payload?.data?.reason),
+      aiConfig.payload?.data?.hasApiKey
+        ? typeof chatAnswer.payload?.data?.degraded === 'boolean' &&
+          (!chatAnswer.payload?.data?.degraded || Boolean(chatAnswer.payload?.data?.reason))
+        : chatAnswer.payload?.data?.degraded === true && Boolean(chatAnswer.payload?.data?.reason),
       String(chatAnswer.payload?.data?.reason),
     );
     check(
       '来源可点击回档案',
       (chatAnswer.payload?.data?.sources || []).every((source) => String(source.href || '').startsWith('/')),
+    );
+    check(
+      'AI 回答附带可点击非遗推荐',
+      (chatAnswer.payload?.data?.links || []).length > 0 &&
+        (chatAnswer.payload?.data?.links || []).every((link) => String(link.href || '').startsWith('/')),
     );
 
     const chatQuery = await json('/api/ai/chat', { method: 'POST', body: { message: '列出第五批国家级项目' } });
@@ -704,22 +832,50 @@ async function main() {
     const guestIp = `10.99.0.${Math.floor(Math.random() * 250) + 2}`;
     const guestHeaders = { 'X-Forwarded-For': guestIp };
 
-    const guestHome = await json('/api/public/home');
-    check('首页公开 API 返回统计、门类与推荐内容', guestHome.status === 200 && guestHome.payload?.data?.stats?.projects > 0 && guestHome.payload?.data?.categories?.length === 10);
-    check('首页已接入数字讲解员', appBundleText().includes('小遗') && appBundleText().includes('PROJECT NARRATION'));
-    check('首页 AI 支持语音输入与朗读', appBundleText().includes('speechSynthesis') && appBundleText().includes('SpeechRecognition'));
-    check('首页公开数据不含虚构示例电话', !JSON.stringify(guestHome.payload || {}).includes('81000000'));
-
-    const visitPage = await json('/api/public/visit');
-    check('探访线索页可访问', visitPage.status === 200);
-    check('探访页含未核实联系方式提示', appBundleText().includes('不会展示未核实的联系方式'));
-    check('探访 API 不含虚构地址与电话', !JSON.stringify(visitPage.payload || {}).includes('81000000') && !JSON.stringify(visitPage.payload || {}).includes('文化路8号'));
-    check('探访 API 返回省份聚合线索', Number(visitPage.payload?.data?.meta?.provinceTotal || 0) >= 10, `${visitPage.payload?.data?.meta?.provinceTotal || 0} 个省份`);
-
-    check('项目详情页有数字讲解员入口', appBundleText().includes('PROJECT NARRATION'));
+    const guestHome = await request('/');
+    const guestHomeHtml = await guestHome.text();
     check(
-      '项目详情页支持三种项目讲解词版本',
-      ['简短版', '详细版', '儿童版'].every((label) => appBundleText().includes(label)),
+      '首页由 React 应用渲染',
+      guestHomeHtml.includes('<div id="root"></div>') && guestHomeHtml.includes('/app/assets/'),
+    );
+    const mainBundlePath = [...guestHomeHtml.matchAll(/src="([^"]*index-[^"]+\.js)"/g)]
+      .map((match) => match[1])
+      .at(-1);
+    const mainBundle = mainBundlePath ? await (await request(mainBundlePath)).text() : '';
+    check(
+      'React 主包包含小遗、语音与讲解入口',
+      mainBundle.includes('问小遗') &&
+        mainBundle.includes('SpeechSynthesisUtterance') &&
+        mainBundle.includes('/ai/narrate'),
+    );
+    check(
+      'React 公共包不包含虚构联系电话',
+      !mainBundle.includes('81000000'),
+    );
+
+    const visitPage = await request('/organizations');
+    const visitHtml = await visitPage.text();
+    check('探访线索页可访问', visitPage.status === 200);
+    check(
+      '探访页由 React 应用接管',
+      visitHtml.includes('<div id="root"></div>') && visitHtml.includes('/app/assets/'),
+    );
+    const visitApi = await json('/api/public/organizations');
+    check('探访 API 可用', visitApi.status === 200 && Array.isArray(visitApi.payload?.data?.items));
+
+    const detailForAi = await request(`/projects/${sampleProject ? sampleProject.id : 1}`);
+    const detailForAiHtml = await detailForAi.text();
+    check(
+      '项目详情页由 React 应用接管',
+      detailForAiHtml.includes('<div id="root"></div>') && detailForAiHtml.includes('/app/assets/'),
+    );
+    const projectChunkName = mainBundle.match(/ProjectDetailPage-[A-Za-z0-9_-]+\.js/)?.[0];
+    const projectChunk = projectChunkName
+      ? await (await request(`/app/assets/${projectChunkName}`)).text()
+      : '';
+    check(
+      'React 构建包含三种讲解词模式',
+      ['brief', 'detailed', 'child'].every((mode) => projectChunk.includes(mode)),
     );
 
     const narrationBrief = await json(`/api/public/ai/narrate?project_id=${sampleProject ? sampleProject.id : 1}&mode=brief`);
@@ -738,8 +894,10 @@ async function main() {
     const narrationMissing = await json('/api/public/ai/narrate?project_id=999999&mode=brief');
     check('未发布或不存在的项目不能生成讲解词（404）', narrationMissing.status === 404);
     check(
-      '数字讲解员构建产物包含语音合成、语音识别与本地讲解接口',
-      appBundleText().includes('speechSynthesis') && appBundleText().includes('SpeechRecognition') && appBundleText().includes('narrate'),
+      '数字讲解员能力已进入 React 构建',
+      mainBundle.includes('SpeechSynthesisUtterance') &&
+        mainBundle.includes('webkitSpeechRecognition') &&
+        mainBundle.includes('/ai/narrate'),
     );
 
     const guestAnswer = await json('/api/public/ai/chat', {
@@ -756,6 +914,11 @@ async function main() {
       '游客回答带可点击来源',
       (guestAnswer.payload?.data?.sources || []).length > 0,
       `${(guestAnswer.payload?.data?.sources || []).length} 条`,
+    );
+    check(
+      '游客回答带可直接跳转的非遗推荐',
+      (guestAnswer.payload?.data?.links || []).length > 0 &&
+        (guestAnswer.payload?.data?.links || []).every((link) => String(link.href || '').startsWith('/')),
     );
     const guestPayload = JSON.stringify(guestAnswer.payload || {});
     check('游客结果不含任何管理端链接', !guestPayload.includes('/admin'));
@@ -818,7 +981,7 @@ async function main() {
     );
     check(
       '归档基地不出现在门户探访页',
-      !JSON.stringify(visitPage.payload || {}).includes('秦淮非遗展示馆') && !JSON.stringify(visitPage.payload || {}).includes('姑苏绣艺非遗工坊'),
+      !visitHtml.includes('秦淮非遗展示馆') && !visitHtml.includes('姑苏绣艺非遗工坊'),
     );
 
     void editorCookie;

@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "webhookUrl": "http://127.0.0.1:5678/webhook/ich-agent",
+  "timeoutMs": 30000,
+  "token": ""
+}

@@ -4,6 +4,7 @@ import { useAppStore } from '../stores/useAppStore';
 import type { ChatLink, ChatMessage, ChatSource } from '../types';
 
 const HISTORY_KEY = 'ich.ai.history.v1';
+const SESSION_KEY = 'ich.ai.session.v1';
 
 interface RecognitionResultLike {
   results: ArrayLike<ArrayLike<{ transcript: string }>>;
@@ -50,6 +51,28 @@ function saveHistory(messages: ChatMessage[]) {
   }
 }
 
+function conversationId(forceNew = false) {
+  try {
+    const saved = forceNew ? '' : sessionStorage.getItem(SESSION_KEY);
+    if (saved) return saved;
+    const id =
+      typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `guest-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    sessionStorage.setItem(SESSION_KEY, id);
+    return id;
+  } catch {
+    return `guest-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+function sourceTypeLabel(type: ChatSource['type']) {
+  if (type === 'project') return '项目';
+  if (type === 'inheritor') return '传承人';
+  if (type === 'organization') return '传承基地';
+  return '知识';
+}
+
 function SourceList({ sources }: { sources: ChatSource[] }) {
   if (!sources.length) return null;
   const labels = {
@@ -63,9 +86,7 @@ function SourceList({ sources }: { sources: ChatSource[] }) {
       <ul>
         {sources.slice(0, 4).map((source) => (
           <li key={`${source.type}-${source.id}`}>
-            <span className="ai-source-tag">
-              {source.type === 'project' ? '项目' : source.type === 'inheritor' ? '传承人' : '知识'}
-            </span>
+            <span className="ai-source-tag">{sourceTypeLabel(source.type)}</span>
             <span className={`ai-source-verification is-${source.verification}`}>
               {labels[source.verification]}
             </span>
@@ -139,6 +160,7 @@ function AssistantConversation({ compact = false }: { compact?: boolean }) {
     try {
       const response = await publicApi.chat({
         message: text,
+        sessionId: conversationId(),
         history,
         context,
       });
@@ -194,6 +216,7 @@ function AssistantConversation({ compact = false }: { compact?: boolean }) {
 
   const reset = () => {
     saveHistory([]);
+    conversationId(true);
     setError('');
     setMessages([
       {

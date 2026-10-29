@@ -266,7 +266,7 @@ export interface ExploreData {
 }
 
 export interface ChatSource {
-  type: 'project' | 'inheritor' | 'knowledge';
+  type: 'project' | 'inheritor' | 'organization' | 'knowledge';
   id: number;
   title: string;
   href: string;

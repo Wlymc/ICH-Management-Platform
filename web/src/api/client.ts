@@ -81,6 +81,7 @@ export const publicApi = {
   explore: () => request<ExploreData>('/explore'),
   chat: (body: {
     message: string;
+    sessionId: string;
     history: Array<{ role: 'user' | 'assistant'; content: string }>;
     context: { page: string; projectId?: number; projectName?: string };
   }) =>

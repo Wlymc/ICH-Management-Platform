@@ -504,6 +504,7 @@ export async function handleApi(req, res, url, user) {
       maxTokens: 400,
       history: body.history,
       context: body.context,
+      sessionId: text(body.sessionId, 80),
     });
     ok(res, {
       reply: result.reply,
