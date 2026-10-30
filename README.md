@@ -128,17 +128,16 @@ AI 只读，不新增、修改、删除或发布档案。推荐对象由服务�
 - **项目星群**：以十大门类为骨架展示项目关系。
 - **人物星群**：129 位传承人以 Canvas 2D 球面投影呈现。
 - **深链接**：支持 `lens=region|project|person`，可在项目、人物和地域之间连续跳转。
+  
+### 7.项目效果
 
----
-## 7.项目效果
-
-### 首页
+首页
 ![首页展示](docs/screenshots/home.png)
 
-### AI 智能问答
+AI 智能问答
 ![AI 问答](docs/screenshots/ai-chat.png)
 
-### 三维器物展示
+三维器物展示
 ![三维器物](docs/screenshots/model-3d.png)
 ## 四、技术架构
 
