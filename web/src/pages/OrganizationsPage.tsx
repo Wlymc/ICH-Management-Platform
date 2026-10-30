@@ -13,28 +13,16 @@ export default function OrganizationsPage() {
 
   return (
     <>
-      <section className="page-head">
+      <section className="page-head visit-page-head">
         <div className="wrap">
           <nav className="breadcrumb">
             <Link to="/">首页</Link>
             <i>/</i>
             <span>探访线索</span>
           </nav>
+          <p className="page-eyebrow">VISIT GUIDE · 地域探访</p>
           <h1 className="page-title">探访线索</h1>
           <p className="page-sub">按地区查看国家级非遗分布，规划你的实地探访路线。</p>
-          {query.data ? (
-            <div className="explore-meta-line">
-              <span>
-                <b>{query.data.meta.provinceTotal}</b> 个省级地区
-              </span>
-              <span>
-                <b>{query.data.meta.projectTotal}</b> 个关联项目
-              </span>
-              <span>
-                <b>{query.data.meta.inheritorTotal}</b> 位传承人
-              </span>
-            </div>
-          ) : null}
         </div>
       </section>
 

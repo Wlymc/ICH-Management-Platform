@@ -79,7 +79,7 @@ export default function HomePage() {
         <div className="wrap hero-inner">
           <div>
             <p className="hero-eyebrow">非物质文化遗产 · 数字资源平台</p>
-            <h1 className="hero-title">非遗数字管理平台</h1>
+            <h1 className="hero-title">遗脉 · 非遗数字展馆</h1>
             <p className="hero-subtitle">非物质文化遗产资源普查、建档、审核与展示一体化平台</p>
             <form
               className="hero-search"
@@ -106,14 +106,6 @@ export default function HomePage() {
               <div>
                 <strong>{data.stats.inheritors}</strong>
                 <span>传承人</span>
-              </div>
-              <div>
-                <strong>{data.stats.organizations}</strong>
-                <span>传承基地</span>
-              </div>
-              <div>
-                <strong>{data.stats.attachments}</strong>
-                <span>多媒体档案</span>
               </div>
             </div>
           </div>

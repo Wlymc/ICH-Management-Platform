@@ -35,7 +35,12 @@ function Cover({
 export function ProjectCard({ project }: { project: ProjectSummary }) {
   return (
     <Link className="card card-project" to={`/projects/${project.id}`}>
-      <Cover url={project.coverUrl} title={project.name} />
+      <div className="project-card-cover">
+        <Cover url={project.coverUrl} title={project.name} />
+        {project.models.length ? (
+          <span className="project-card-3d-badge">3D · {project.models.length}</span>
+        ) : null}
+      </div>
       <div className="card-body">
         <div className="card-tags">
           <span className="chip chip-red">{project.categoryName}</span>

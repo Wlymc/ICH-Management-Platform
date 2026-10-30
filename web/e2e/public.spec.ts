@@ -2,7 +2,10 @@ import { expect, test } from '@playwright/test';
 
 test('home page and AI assistant are interactive', async ({ page }) => {
   await page.goto('./');
-  await expect(page.getByRole('heading', { name: '非遗数字管理平台' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '遗脉 · 非遗数字展馆' })).toBeVisible();
+  await expect(page.locator('.hero-stats > div')).toHaveCount(2);
+  await expect(page.locator('.hero-stats')).not.toContainText('传承基地');
+  await expect(page.locator('.hero-stats')).not.toContainText('多媒体档案');
   await page.getByRole('button', { name: '问小遗' }).click();
   await expect(page.locator('.react-ai-fab .ai-input')).toBeVisible();
 });
